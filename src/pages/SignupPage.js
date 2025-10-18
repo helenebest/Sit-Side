@@ -276,11 +276,11 @@ const SignupPage = () => {
                 <div className="ml-3 text-sm">
                   <label htmlFor="agreeToTerms" className="text-neutral-light">
                     I agree to the{' '}
-                    <a href="#" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    <a href="/terms" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
                       Terms of Service
                     </a>{' '}
                     and{' '}
-                    <a href="#" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    <a href="/privacy" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
                       Privacy Policy
                     </a>
                   </label>
