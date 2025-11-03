@@ -1,4 +1,4 @@
-// Vercel serverless function for API routes
+// Netlify serverless function for API routes
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -6,12 +6,14 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// Middleware
+// Middleware - Allow all origins for Netlify (CORS handled by Netlify)
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'https://your-domain.com',
+  origin: '*',
   credentials: true
 }));
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -21,7 +23,7 @@ const apiLimiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
 });
-app.use('/api/', apiLimiter);
+app.use(apiLimiter);
 
 // Simple in-memory storage (for demo - replace with MongoDB in production)
 let users = [];
@@ -123,6 +125,175 @@ app.get('/api/users/me', auth, (req, res) => {
   const userResponse = { ...req.user };
   delete userResponse.password;
   res.json(userResponse);
+});
+
+// Verify token endpoint
+app.get('/api/auth/verify', auth, (req, res) => {
+  const userResponse = { ...req.user };
+  delete userResponse.password;
+  res.json({ user: userResponse });
+});
+
+// Update profile endpoint
+app.put('/api/auth/profile', auth, (req, res) => {
+  const { firstName, lastName, phone, grade, school } = req.body;
+  const user = req.user;
+  
+  if (firstName) user.firstName = firstName;
+  if (lastName) user.lastName = lastName;
+  if (phone) user.phone = phone;
+  if (grade) user.grade = grade;
+  if (school) user.school = school;
+  
+  const userResponse = { ...user };
+  delete userResponse.password;
+  res.json({ user: userResponse });
+});
+
+// Get students endpoint (for parents)
+app.get('/api/users/students', (req, res) => {
+  const students = users
+    .filter(u => u.userType === 'student' && u.isActive)
+    .map(u => {
+      const { password, ...user } = u;
+      return user;
+    });
+  res.json(students);
+});
+
+// Get single student profile
+app.get('/api/users/students/:id', (req, res) => {
+  const student = users.find(u => u.id === parseInt(req.params.id) && u.userType === 'student');
+  if (!student) {
+    return res.status(404).json({ error: 'Student not found' });
+  }
+  const { password, ...studentResponse } = student;
+  res.json(studentResponse);
+});
+
+// Create booking endpoint
+app.post('/api/bookings', auth, (req, res) => {
+  const { studentId, date, time, duration, location, notes } = req.body;
+  
+  if (!studentId || !date || !time || !duration) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  
+  const student = users.find(u => u.id === studentId);
+  if (!student) {
+    return res.status(404).json({ error: 'Student not found' });
+  }
+  
+  const booking = {
+    id: nextBookingId++,
+    parentId: req.user.id,
+    studentId,
+    date,
+    time,
+    duration,
+    location,
+    notes,
+    status: 'pending',
+    createdAt: new Date()
+  };
+  
+  bookings.push(booking);
+  res.status(201).json(booking);
+});
+
+// Get user's bookings
+app.get('/api/bookings/my-bookings', auth, (req, res) => {
+  const userBookings = bookings.filter(b => 
+    b.parentId === req.user.id || b.studentId === req.user.id
+  );
+  res.json(userBookings);
+});
+
+// Update booking status
+app.put('/api/bookings/:id/status', auth, (req, res) => {
+  const { status, reason } = req.body;
+  const booking = bookings.find(b => b.id === parseInt(req.params.id));
+  
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+  
+  if (booking.studentId !== req.user.id && booking.parentId !== req.user.id) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  
+  booking.status = status;
+  if (reason) booking.reason = reason;
+  
+  res.json(booking);
+});
+
+// Add review to booking
+app.post('/api/bookings/:id/review', auth, (req, res) => {
+  const { rating, comment } = req.body;
+  const booking = bookings.find(b => b.id === parseInt(req.params.id));
+  
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+  
+  if (booking.parentId !== req.user.id) {
+    return res.status(403).json({ error: 'Only parents can add reviews' });
+  }
+  
+  booking.review = { rating, comment, createdAt: new Date() };
+  
+  // Update student rating
+  const student = users.find(u => u.id === booking.studentId);
+  if (student) {
+    const reviews = bookings
+      .filter(b => b.studentId === student.id && b.review)
+      .map(b => b.review.rating);
+    student.rating = reviews.reduce((a, b) => a + b, 0) / reviews.length;
+    student.reviewCount = reviews.length;
+  }
+  
+  res.json(booking);
+});
+
+// Update availability (students only)
+app.put('/api/users/availability', auth, (req, res) => {
+  if (req.user.userType !== 'student') {
+    return res.status(403).json({ error: 'Only students can update availability' });
+  }
+  
+  req.user.availability = req.body.availability;
+  const { password, ...userResponse } = req.user;
+  res.json({ user: userResponse });
+});
+
+// Add certification (students only)
+app.post('/api/users/certifications', auth, (req, res) => {
+  if (req.user.userType !== 'student') {
+    return res.status(403).json({ error: 'Only students can add certifications' });
+  }
+  
+  if (!req.user.certifications) {
+    req.user.certifications = [];
+  }
+  
+  req.user.certifications.push(req.body.certification);
+  const { password, ...userResponse } = req.user;
+  res.json({ user: userResponse });
+});
+
+// Admin routes - Get all users
+app.get('/api/admin/users', auth, adminAuth, (req, res) => {
+  const usersResponse = users.map(u => {
+    const { password, ...user } = u;
+    return user;
+  });
+  res.json(usersResponse);
+});
+
+// Admin routes - Get all bookings
+app.get('/api/admin/bookings', auth, adminAuth, (req, res) => {
+  res.json(bookings);
 });
 
 // Admin routes
