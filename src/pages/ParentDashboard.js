@@ -17,7 +17,7 @@ const ParentDashboard = () => {
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 ];
-  const students = [
+  const coreStudents = [
     {
       id: 1,
       name: 'Helen Best',
