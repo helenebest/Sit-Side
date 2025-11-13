@@ -96,11 +96,11 @@ const HomePage = () => {
           <div className="mt-10 grid md:grid-cols-2 gap-6">
             <Card className="p-6">
               <p className="italic text-neutral-dark">“Sit Side made it so easy to find someone trustworthy for a last-minute night out.”</p>
-              <div className="mt-4 text-sm text-neutral-light">— Sarah M.</div>
+              <div className="mt-4 text-sm text-neutral-light">— Kelly R.</div>
             </Card>
             <Card className="p-6">
               <p className="italic text-neutral-dark">“As a student, I love the flexibility and the families I’ve met.”</p>
-              <div className="mt-4 text-sm text-neutral-light">— Alex T.</div>
+              <div className="mt-4 text-sm text-neutral-light">— Ava P.</div>
             </Card>
           </div>
         </div>
