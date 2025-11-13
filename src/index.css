@@ -1,5 +1,5 @@
 /* Sit Side Custom Styles */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap');
+/* Fonts are loaded in index.html for better performance */
 
 /* CSS Variables for Colors */
 :root {
