@@ -26,14 +26,29 @@ const apiRequest = async (url, options = {}) => {
     ...options,
   };
 
-  const response = await fetch(`${API_BASE_URL}${url}`, config);
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Request failed');
+  try {
+    const response = await fetch(`${API_BASE_URL}${url}`, config);
+    
+    if (!response.ok) {
+      let errorMessage = 'Request failed';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // If response is not JSON, use status text
+        errorMessage = response.statusText || `Server error (${response.status})`;
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return response.json();
+  } catch (error) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error. Please check your connection and try again.');
+    }
+    throw error;
   }
-  
-  return response.json();
 };
 
 export const AuthProvider = ({ children }) => {
@@ -68,7 +83,7 @@ export const AuthProvider = ({ children }) => {
 
       localStorage.setItem('token', data.token);
       setUser(data.user);
-      return { success: true };
+      return { success: true, user: data.user };
     } catch (error) {
       return { success: false, error: error.message };
     }
