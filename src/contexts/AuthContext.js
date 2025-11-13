@@ -13,9 +13,36 @@ export const useAuth = () => {
 // API base URL - use relative path for Netlify, absolute for local dev
 const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api');
 
+// Safe localStorage wrapper for Chrome compatibility
+const safeLocalStorage = {
+  getItem: (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      console.warn('localStorage not available:', error);
+      return null;
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn('localStorage setItem failed:', error);
+      // Chrome sometimes blocks localStorage in certain contexts
+    }
+  },
+  removeItem: (key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn('localStorage removeItem failed:', error);
+    }
+  }
+};
+
 // Helper function to make authenticated requests
 const apiRequest = async (url, options = {}) => {
-  const token = localStorage.getItem('token');
+  const token = safeLocalStorage.getItem('token');
   
   const config = {
     headers: {
@@ -58,14 +85,14 @@ export const AuthProvider = ({ children }) => {
   // Check if user is authenticated on app load
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
+      const token = safeLocalStorage.getItem('token');
       if (token) {
         try {
           const data = await apiRequest('/auth/verify');
           setUser(data.user);
         } catch (error) {
           console.error('Auth verification failed:', error);
-          localStorage.removeItem('token');
+          safeLocalStorage.removeItem('token');
         }
       }
       setLoading(false);
@@ -81,7 +108,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
-      localStorage.setItem('token', data.token);
+      safeLocalStorage.setItem('token', data.token);
       setUser(data.user);
       return { success: true, user: data.user };
     } catch (error) {
@@ -96,7 +123,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(userData),
       });
 
-      localStorage.setItem('token', data.token);
+      safeLocalStorage.setItem('token', data.token);
       setUser(data.user);
       return { success: true };
     } catch (error) {
@@ -105,7 +132,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    safeLocalStorage.removeItem('token');
     setUser(null);
   };
 
