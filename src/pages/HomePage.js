@@ -9,11 +9,44 @@ import SitterCard from '../components/SitterCard';
 const HomePage = () => {
   const navigate = useNavigate();
   
+  // Core students featured on homepage (same as in ParentDashboard)
   const sitters = [
-    { id: 1, name: 'Helen Best', grade: 11, school: 'Windward High School', tags: ['Licensed Driver', 'Tutor'] },
-    { id: 2, name: 'Ava Parker', grade: 11, school: 'Windward High School', tags: ['Tutor', 'Coach'] },
-    { id: 3, name: 'Lilah Rubinson', grade: 11, school: 'Windward High School', tags: ['Licensed Driver'] },
-    { id: 4, name: 'Lila Owens', grade: 11, school: 'Windward High School', tags: ['Licensed Driver', 'Coach'] },
+    {
+      id: 1001,
+      name: 'Helen Best',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 18, // Extract from $18 – $25 / hour
+      rating: null,
+      tags: ['California Licensed Driver']
+    },
+    {
+      id: 1002,
+      name: 'Ava Parker',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 20,
+      rating: null,
+      tags: ['California Licensed Driver', 'Youth Sports Coach']
+    },
+    {
+      id: 1003,
+      name: 'Lilah Rubinson',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 20,
+      rating: null,
+      tags: ['California Licensed Driver']
+    },
+    {
+      id: 1004,
+      name: 'Lila Owens',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 20,
+      rating: null,
+      tags: ['California Licensed Driver']
+    },
   ];
 
   return (
@@ -79,7 +112,13 @@ const HomePage = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-bold text-neutral-dark">Featured Sitters</h2>
-            <button type="button" className="text-primary hover:underline">See all</button>
+            <button 
+              type="button" 
+              className="text-primary hover:underline"
+              onClick={() => navigate('/signup?type=parent')}
+            >
+              See all
+            </button>
           </div>
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {sitters.map(s => (
@@ -96,11 +135,11 @@ const HomePage = () => {
           <div className="mt-10 grid md:grid-cols-2 gap-6">
             <Card className="p-6">
               <p className="italic text-neutral-dark">“Sit Side made it so easy to find someone trustworthy for a last-minute night out.”</p>
-              <div className="mt-4 text-sm text-neutral-light">— Kelly R.</div>
+              <div className="mt-4 text-sm text-neutral-light">— Sarah M.</div>
             </Card>
             <Card className="p-6">
               <p className="italic text-neutral-dark">“As a student, I love the flexibility and the families I’ve met.”</p>
-              <div className="mt-4 text-sm text-neutral-light">— Ava P.</div>
+              <div className="mt-4 text-sm text-neutral-light">— Alex T.</div>
             </Card>
           </div>
         </div>
@@ -136,7 +175,7 @@ const HomePage = () => {
           <p className="mt-2 text-neutral-light">Create your account and join our trusted community today.</p>
           <div className="mt-6 flex justify-center gap-3">
             <PrimaryButton onClick={() => navigate('/signup')}>Get Started</PrimaryButton>
-            <OutlineButton onClick={() => navigate('/login')}>Learn More</OutlineButton>
+            <OutlineButton onClick={() => navigate('/#how')}>Learn More</OutlineButton>
           </div>
         </div>
       </section>
