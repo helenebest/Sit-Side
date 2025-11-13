@@ -10,10 +10,10 @@ const HomePage = () => {
   const navigate = useNavigate();
   
   const sitters = [
-    { id: 1, name: 'Alex Thompson', grade: 11, school: 'Lincoln High', rate: 15, rating: 4.8, tags: ['CPR', 'First Aid'] },
-    { id: 2, name: 'Emma Rodriguez', grade: 12, school: 'Roosevelt High', rate: 18, rating: 4.9, tags: ['CPR'] },
-    { id: 3, name: 'Jordan Kim', grade: 10, school: 'Central High', rate: 12, rating: 4.7, tags: ['First Aid'] },
-    { id: 4, name: 'Maya Singh', grade: 12, school: 'Eastview High', rate: 16, rating: 4.9, tags: ['CPR', 'Tutor'] },
+    { id: 1, name: 'Helen Best', grade: 11, school: 'Windward High School', tags: ['Licensed Driver', 'Tutor'] },
+    { id: 2, name: 'Ava Parker', grade: 11, school: 'Windward High School', tags: ['Tutor', 'Coach'] },
+    { id: 3, name: 'Lilah Rubinson', grade: 11, school: 'Windward High School', tags: ['Licensed Driver'] },
+    { id: 4, name: 'Lila Owens', grade: 11, school: 'Windward High School', tags: ['Licensed Driver', 'Coach'] },
   ];
 
   return (
