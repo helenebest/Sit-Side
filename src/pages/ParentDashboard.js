@@ -1,12 +1,81 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
+import { useAuth } from '../contexts/AuthContext';
+
+const CORE_STUDENTS = [
+  {
+    id: 1001,
+    name: 'Helen Best',
+    school: 'Windward High School',
+    grade: 11,
+    rating: null,
+    reviewCount: 0,
+    hourlyRateRange: '$18 – $25 / hour',
+    location: 'Venice, Los Angeles',
+    locationRange: 'Westside of LA and Santa Monica',
+    bio: 'Experienced babysitter with retail experience. Math tutoring also available. Love working with kids of all ages!',
+    certifications: ['California Licensed Driver'],
+    availability: 'Saturdays, evenings after 5:30 PM',
+    experience: '2 years',
+    image: null,
+  },
+  {
+    id: 1002,
+    name: 'Ava Parker',
+    school: 'Windward High School',
+    grade: 11,
+    rating: null,
+    reviewCount: 0,
+    hourlyRateRange: '$20 / hour',
+    location: 'Ladera Heights',
+    locationRange: 'Los Angeles and Santa Monica',
+    bio: 'Responsible and caring babysitter, coach (softball and volleyball), and tutor. Great with toddlers and school-age children.',
+    certifications: ['California Licensed Driver', 'Youth Sports Coach'],
+    availability: 'Afternoons, weekends',
+    experience: '2 years',
+    image: null,
+  },
+  {
+    id: 1003,
+    name: 'Lilah Rubinson',
+    school: 'Windward High School',
+    grade: 11,
+    rating: null,
+    reviewCount: 0,
+    hourlyRateRange: '$20 / hour',
+    location: 'Hancock Park / Mid Wilshire',
+    locationRange: 'Greater Los Angeles Area',
+    bio: 'Very experienced babysitter for kids of all ages.',
+    certifications: ['California Licensed Driver'],
+    availability: 'Monday–Friday 5:30-10:30 PM',
+    experience: '1 year',
+    image: null,
+  },
+  {
+    id: 1004,
+    name: 'Lila Owens',
+    school: 'Windward High School',
+    grade: 11,
+    rating: null,
+    reviewCount: 0,
+    hourlyRateRange: '$20 / hour',
+    location: 'Westwood',
+    locationRange: 'Santa Monica, Brentwood, Westwood, Marina Del Rey and Pacific Palisades',
+    bio: 'A responsible and caring babysitter with experience caring for children ages 3+, ensuring their safety and keeping them engaged through fun and educational activities',
+    certifications: ['California Licensed Driver'],
+    availability: 'Evenings, weekends',
+    experience: '2 years',
+    image: null,
+  },
+];
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
+  const { getStudents } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [searchFilters, setSearchFilters] = useState({
     location: '',
@@ -16,72 +85,9 @@ const ParentDashboard = () => {
   });
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-];
-  const coreStudents = [
-    {
-      id: 1,
-      name: 'Helen Best',
-      school: 'Windward High School',
-      grade: 11,
-      rating: null,
-      reviewCount: null,
-      hourlyRate: 18-25,
-      location: 'Venice, Los Angeles',
-      locationRange: 'Westside of LA and Santa Monica.',
-      bio: 'Experienced babysitter with Retail Experience. Tutoring in math also available. Love working with kids of all ages!',
-      certifications: ['California Licensed Driver'],
-      availability: 'Saturdays, Evenings After 5:30 PM',
-      experience: '2 years',
-      image: null,
-    },
-    {
-      id: 2,
-      name: 'Ava Parker',
-      school: 'Windward High School',
-      grade: 11,
-      rating: null,
-      reviewCount: null,
-      hourlyRate: 20,
-      location: 'Ladera Heights',
-      locationRange: 'Los Angeles and Santa Monica City.',
-      bio: 'Responsible and caring babysitter, coach (Softball and Volleyball), and tutor. Great with toddlers and school-age children.',
-      availability: 'Afternoons, Weekends',
-      experience: '2 years',
-      image: null,
-    },
-    {
-      id: 3,
-      name: 'Lilah Rubinson',
-      school: 'Windward High School',
-      grade: 11,
-      rating: null,
-      reviewCount: null,
-      hourlyRate: 20,
-      location: 'Hancock Park/Mid Wilshire',
-      locationRange: 'Greater Los Angeles Area.',
-      bio: 'Very experienced babysitter for kids of all ages.',
-      certifications: ['California Licensed Driver'],
-      availability: 'Monday-Friday evenings ',
-      experience: '1 year',
-      image: null,
-    },
-    {
-      id: 4,
-      name: 'Lila Owens',
-      school: 'Windward High School',
-      grade: 11,
-      rating: null,
-      reviewCount: null,
-      hourlyRate: 20,
-      location: 'Santa Monica',
-      locationRange: 'Santa Monica, Brentwood, and Palisades.',
-      bio: 'Energetic and fun babysitter who loves arts and crafts with kids.',
-      certifications: ['California Licensed Driver'],
-      availability: 'Evenings, Weekends',
-      experience: '2 years',
-      image: null,
-    },
-  ];
+  const [fetchedStudents, setFetchedStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState('');
 
   // Mock booking data
   const bookings = [
@@ -120,6 +126,76 @@ const ParentDashboard = () => {
 
   const handleBookingSubmit = () => {
     setBookingDialogOpen(false);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadStudents = async () => {
+      setStudentsLoading(true);
+      setStudentsError('');
+      try {
+        const result = await getStudents();
+        if (!isMounted) {
+          return;
+        }
+
+        if (result.success) {
+          // Prevent duplicates if API ever returns the core students
+          const coreIds = new Set(CORE_STUDENTS.map((student) => String(student.id)));
+          const uniqueStudents = (result.data || []).filter(
+            (student) => !coreIds.has(String(student.id)),
+          );
+          setFetchedStudents(uniqueStudents);
+        } else {
+          setStudentsError(result.error || 'Unable to fetch students.');
+        }
+      } catch (error) {
+        if (isMounted) {
+          setStudentsError(error.message || 'Unable to fetch students.');
+        }
+      } finally {
+        if (isMounted) {
+          setStudentsLoading(false);
+        }
+      }
+    };
+
+    loadStudents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getStudents]);
+
+  const students = useMemo(() => {
+    if (!fetchedStudents.length) {
+      return CORE_STUDENTS;
+    }
+    return [...CORE_STUDENTS, ...fetchedStudents];
+  }, [fetchedStudents]);
+
+  const renderRate = (student) => {
+    if (student.hourlyRateRange) {
+      return student.hourlyRateRange;
+    }
+    if (typeof student.hourlyRate === 'number' && Number.isFinite(student.hourlyRate)) {
+      return `$${student.hourlyRate.toFixed(2).replace(/\.00$/, '')} / hour`;
+    }
+    if (typeof student.hourlyRate === 'string') {
+      return student.hourlyRate.includes('$') ? student.hourlyRate : `$${student.hourlyRate}`;
+    }
+    return 'Contact for rates';
+  };
+
+  const renderRating = (student) => {
+    const numericRating = Number(student.rating);
+    if (Number.isFinite(numericRating) && numericRating > 0) {
+      const reviewCount = Number(student.reviewCount) || 0;
+      const reviewsLabel = reviewCount > 0 ? `${reviewCount} review${reviewCount === 1 ? '' : 's'}` : 'rating';
+      return `${numericRating.toFixed(1)} (${reviewsLabel})`;
+    }
+    return 'New sitter';
   };
 
   const getStatusColor = (status) => {
@@ -221,19 +297,34 @@ const ParentDashboard = () => {
                   Available Babysitters ({students.length})
                 </h3>
               </div>
+              {studentsError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {studentsError}
+                </div>
+              )}
+              {studentsLoading && (
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  Loading babysitters…
+                </div>
+              )}
+              {!studentsLoading && students.length === 0 && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-6 text-center text-blue-800">
+                  No babysitters yet. Invite students to complete their profiles!
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {students.map((student) => (
                   <Card key={student.id} className="p-6 hover:-translate-y-1 transition-transform">
                     <div className="flex items-center mb-4">
                       <div className="h-16 w-16 rounded-full bg-secondary/15 flex items-center justify-center text-secondary font-bold text-xl mr-4">
-                        {student.name.charAt(0)}
+                        {student.name?.charAt(0) ?? '?'}
                       </div>
                       <div className="flex-1">
                         <h4 className="text-lg font-semibold text-neutral-dark">{student.name}</h4>
                         <p className="text-sm text-neutral-light">Grade {student.grade} • {student.school}</p>
                         <div className="flex items-center mt-1">
                           <span className="text-yellow-400 mr-1">⭐</span>
-                          <span className="text-sm text-neutral-dark">{student.rating} ({student.reviewCount} reviews)</span>
+                          <span className="text-sm text-neutral-dark">{renderRating(student)}</span>
                         </div>
                       </div>
                     </div>
@@ -243,9 +334,13 @@ const ParentDashboard = () => {
                     <div className="mb-4">
                       <h5 className="text-sm font-semibold text-neutral-dark mb-2">Certifications:</h5>
                       <div className="flex flex-wrap gap-2">
-                        {student.certifications.map((cert, index) => (
-                          <Badge key={index} color="primary">{cert}</Badge>
-                        ))}
+                        {(student.certifications || []).length > 0 ? (
+                          student.certifications.map((certification) => (
+                            <Badge key={certification} color="primary">{certification}</Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-neutral-light">No certifications listed</span>
+                        )}
                       </div>
                     </div>
 
@@ -254,11 +349,16 @@ const ParentDashboard = () => {
                         📍 {student.location}
                       </div>
                       <div className="flex items-center text-sm text-neutral-light">
-                        📅 {student.availability}
+                        📅 {student.availability || 'Availability not set'}
                       </div>
                       <div className="flex items-center text-sm text-neutral-light">
-                        💰 ${student.hourlyRate}/hour
+                        💰 {renderRate(student)}
                       </div>
+                      {student.locationRange && (
+                        <div className="flex items-center text-sm text-neutral-light">
+                          📍 Service area: {student.locationRange}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2">
@@ -332,7 +432,7 @@ const ParentDashboard = () => {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Book {selectedStudent.name}</h3>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-              You're about to book {selectedStudent.name} at ${selectedStudent.hourlyRate}/hour
+              You're about to book {selectedStudent.name} at {renderRate(selectedStudent)}
             </div>
             <div className="space-y-4">
               <div>
