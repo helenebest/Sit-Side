@@ -82,11 +82,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is authenticated on app load
+  // Check if user is authenticated on app load (non-blocking)
   useEffect(() => {
     const checkAuth = async () => {
+      // Set loading to false immediately so page can render
+      setLoading(false);
+      
       const token = safeLocalStorage.getItem('token');
       if (token) {
+        // Verify auth in background (non-blocking)
         try {
           const data = await apiRequest('/auth/verify');
           setUser(data.user);
@@ -95,7 +99,6 @@ export const AuthProvider = ({ children }) => {
           safeLocalStorage.removeItem('token');
         }
       }
-      setLoading(false);
     };
 
     checkAuth();
