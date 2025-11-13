@@ -34,7 +34,7 @@ let nextBookingId = 1;
 // Create default admin user
 const defaultAdmin = {
   id: 0,
-  email: process.env.ADMIN_EMAIL || 'admin@sitside.com',
+  email: process.env.ADMIN_EMAIL || 'helbybest@gmail.com',
   password: process.env.ADMIN_PASSWORD || 'Tenacity2301!',
   firstName: 'Admin',
   lastName: 'Helen',
