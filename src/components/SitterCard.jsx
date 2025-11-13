@@ -20,7 +20,11 @@ const SitterCard = ({ id, name, grade, school, rate, rating, tags = [] }) => {
         </div>
         <p className="text-sm text-neutral-light">Grade {grade} • {school}</p>
         <div className="mt-2 flex items-center gap-2">
-          <span className="text-sm">⭐ {rating}</span>
+          {rating ? (
+            <span className="text-sm">⭐ {rating}</span>
+          ) : (
+            <span className="text-sm text-neutral-light">New sitter</span>
+          )}
           {tags.map((t) => (
             <Badge key={t} color="neutral">{t}</Badge>
           ))}
