@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import Card from '../components/ui/Card';
@@ -26,17 +26,28 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
 
-    const result = await login(formData.email, formData.password);
-    
-    if (result.success) {
-      // Redirect based on user type
-      const userType = result.user?.userType || 'student';
-      navigate(`/${userType}`);
-    } else {
-      setError(result.error || 'Login failed. Please try again.');
+    try {
+      const result = await login(formData.email, formData.password);
+      
+      if (result.success && result.user) {
+        // Redirect based on user type
+        const userType = result.user.userType || 'student';
+        // Handle admin, parent, and student redirects
+        if (userType === 'admin') {
+          navigate('/admin');
+        } else if (userType === 'parent') {
+          navigate('/parent');
+        } else {
+          navigate('/student');
+        }
+      } else {
+        setError(result.error || 'Login failed. Please check your credentials and try again.');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
