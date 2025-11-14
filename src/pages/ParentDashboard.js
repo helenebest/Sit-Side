@@ -141,7 +141,10 @@ const ParentDashboard = () => {
         }
 
         if (result.success) {
-          // Prevent duplicates if API ever returns the core students
+          // Prevent duplicates: filter out students that match core students by ID
+          // Note: For testing, we only filter by ID (not name) so core group members
+          // (Ava, Lila, Lilah) can create test accounts and see their own profiles.
+          // In production, you may want to also filter by name/email to prevent true duplicates.
           const coreIds = new Set(CORE_STUDENTS.map((student) => String(student.id)));
           const uniqueStudents = (result.data || []).filter(
             (student) => !coreIds.has(String(student.id)),
