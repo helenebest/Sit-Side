@@ -40,9 +40,13 @@ const safeLocalStorage = {
   }
 };
 
-// Helper function to make authenticated requests
-const apiRequest = async (url, options = {}) => {
+// Helper function to make authenticated requests with timeout and retry logic
+const apiRequest = async (url, options = {}, retries = 2) => {
   const token = safeLocalStorage.getItem('token');
+  
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
   
   const config = {
     headers: {
@@ -50,11 +54,13 @@ const apiRequest = async (url, options = {}) => {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
+    signal: controller.signal,
     ...options,
   };
 
   try {
     const response = await fetch(`${API_BASE_URL}${url}`, config);
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       let errorMessage = 'Request failed';
@@ -70,7 +76,19 @@ const apiRequest = async (url, options = {}) => {
     
     return response.json();
   } catch (error) {
+    clearTimeout(timeoutId);
+    
+    // Retry on network errors if retries remaining
+    if (retries > 0 && (error.name === 'AbortError' || (error instanceof TypeError && error.message.includes('fetch')))) {
+      // Wait 500ms before retry
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return apiRequest(url, options, retries - 1);
+    }
+    
     // Handle network errors
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new Error('Network error. Please check your connection and try again.');
     }
@@ -90,13 +108,16 @@ export const AuthProvider = ({ children }) => {
       
       const token = safeLocalStorage.getItem('token');
       if (token) {
-        // Verify auth in background (non-blocking)
+        // Verify auth in background (non-blocking) with timeout
         try {
           const data = await apiRequest('/auth/verify');
           setUser(data.user);
         } catch (error) {
           console.error('Auth verification failed:', error);
-          safeLocalStorage.removeItem('token');
+          // Only remove token on clear auth errors, not network errors
+          if (!error.message.includes('timeout') && !error.message.includes('Network error')) {
+            safeLocalStorage.removeItem('token');
+          }
         }
       }
     };
