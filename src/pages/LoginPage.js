@@ -41,11 +41,13 @@ const LoginPage = () => {
           navigate('/student');
         }
       } else {
-        setError(result.error || 'Login failed. Please check your credentials and try again.');
+        const errorMsg = result.error || 'Login failed. Please check your credentials and try again.';
+        setError(errorMsg);
         setLoading(false);
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      const errorMsg = err.message || 'An unexpected error occurred. Please check your connection and try again.';
+      setError(errorMsg);
       setLoading(false);
     }
   };
@@ -92,10 +94,17 @@ const LoginPage = () => {
           </div>
           <PrimaryButton
             type="submit"
-            disabled={loading}
+            disabled={loading || !formData.email || !formData.password}
             className="w-full mt-6"
           >
-            {loading ? 'Signing In...' : 'Sign In'}
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Signing In...
+              </div>
+            ) : (
+              'Sign In'
+            )}
           </PrimaryButton>
         </form>
 
