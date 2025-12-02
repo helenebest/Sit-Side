@@ -5,6 +5,10 @@
 [build.environment]
   NODE_VERSION = "18"
 
+[functions]
+  # Increase timeout for API functions (max 26 seconds on free tier)
+  timeout = 10
+
 # Headers for security and caching
 [[headers]]
   for = "/index.html"
