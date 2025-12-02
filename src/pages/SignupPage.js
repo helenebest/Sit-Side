@@ -39,11 +39,37 @@ const SignupPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent duplicate submissions
+    if (loading) {
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
+    // Validate student fields
+    if (formData.userType === 'student') {
+      if (!formData.grade || !formData.school) {
+        setError('Please provide your grade and school');
+        setLoading(false);
+        return;
+      }
+      if (parseInt(formData.grade) < 9 || parseInt(formData.grade) > 12) {
+        setError('Grade must be between 9 and 12');
+        setLoading(false);
+        return;
+      }
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
       setLoading(false);
       return;
     }
@@ -76,15 +102,21 @@ const SignupPage = () => {
       registrationData.emergencyContact = formData.emergencyContact;
     }
 
-    const result = await register(registrationData);
-    
-    if (result.success) {
-      navigate(`/${formData.userType}`);
-    } else {
-      setError(result.error || 'Registration failed. Please try again.');
+    try {
+      const result = await register(registrationData);
+      
+      if (result.success) {
+        navigate(`/${formData.userType}`);
+      } else {
+        const errorMsg = result.error || 'Registration failed. Please try again.';
+        setError(errorMsg);
+        setLoading(false);
+      }
+    } catch (err) {
+      const errorMsg = err.message || 'An unexpected error occurred. Please check your connection and try again.';
+      setError(errorMsg);
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
@@ -102,8 +134,8 @@ const SignupPage = () => {
             </div>
 
             {error && (
-              <div className="error-message">
-                <p className="text-red-600">{error}</p>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                <p className="text-red-800 text-sm">{error}</p>
               </div>
             )}
 
@@ -276,11 +308,11 @@ const SignupPage = () => {
                 <div className="ml-3 text-sm">
                   <label htmlFor="agreeToTerms" className="text-neutral-light">
                     I agree to the{' '}
-                    <a href="/terms" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    <a href="#" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
                       Terms of Service
                     </a>{' '}
                     and{' '}
-                    <a href="/privacy" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    <a href="#" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
                       Privacy Policy
                     </a>
                   </label>
