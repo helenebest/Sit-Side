@@ -11,7 +11,7 @@ export const useAuth = () => {
 };
 
 // API base URL - use relative path for Netlify, absolute for local dev
-const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api');
+const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api');
 
 // Safe localStorage wrapper for Chrome compatibility
 const safeLocalStorage = {
@@ -87,10 +87,10 @@ const apiRequest = async (url, options = {}, retries = 2) => {
     
     // Handle network errors
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out. Please check your connection and try again.');
+      throw new Error('Request timed out. The backend server may not be running. Please start the backend server (see QUICK_START.md) and try again.');
     }
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error('Network error. Please check your connection and try again.');
+      throw new Error('Cannot connect to backend server. Please make sure the backend server is running on port 5000 (see QUICK_START.md for instructions).');
     }
     throw error;
   }
