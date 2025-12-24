@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import Card from '../components/ui/Card';
@@ -308,13 +308,13 @@ const SignupPage = () => {
                 <div className="ml-3 text-sm">
                   <label htmlFor="agreeToTerms" className="text-neutral-light">
                     I agree to the{' '}
-                    <a href="#" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    <Link to="/terms" className="text-primary hover:underline">
                       Terms of Service
-                    </a>{' '}
+                    </Link>{' '}
                     and{' '}
-                    <a href="#" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                    <Link to="/privacy" className="text-primary hover:underline">
                       Privacy Policy
-                    </a>
+                    </Link>
                   </label>
                 </div>
               </div>
