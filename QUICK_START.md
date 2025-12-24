@@ -60,7 +60,7 @@ The frontend will start on `http://localhost:3000`
 ## Default Admin Account (Simple Server Only)
 
 If using `server-simple.js`, you can log in with:
-- **Email:** `helbybest.com`
+- **Email:** `admin@sitside.com`
 - **Password:** `Tenacity2301!`
 
 ## Troubleshooting
