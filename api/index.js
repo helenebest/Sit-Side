@@ -1,4 +1,4 @@
-// Netlify serverless function for API routes
+// Serverless function for API routes (works with both Vercel and Netlify)
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -46,22 +46,37 @@ let bookings = [];
 let nextUserId = 1;
 let nextBookingId = 1;
 
-// Create default admin user
-const defaultAdmin = {
-  id: 0,
-  email: process.env.ADMIN_EMAIL || 'helbybest@gmail.com',
-  password: process.env.ADMIN_PASSWORD || 'Tenacity2301!',
-  firstName: 'Admin',
-  lastName: 'Helen',
-  userType: 'admin',
-  token: `admin_token_${Date.now()}`,
-  createdAt: new Date(),
-  isActive: true
-};
-users.push(defaultAdmin);
+// Helper function to ensure default admin exists (important for serverless functions)
+function ensureDefaultAdmin() {
+  const adminEmail = process.env.ADMIN_EMAIL || 'helbybest@gmail.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'Tenacity2301!';
+  
+  // Check if admin already exists
+  const existingAdmin = users.find(u => u.email.toLowerCase() === adminEmail.toLowerCase());
+  if (!existingAdmin) {
+    const defaultAdmin = {
+      id: 0,
+      email: adminEmail,
+      password: adminPassword,
+      firstName: 'Admin',
+      lastName: 'Helen',
+      userType: 'admin',
+      token: `admin_token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date(),
+      isActive: true
+    };
+    users.push(defaultAdmin);
+  }
+}
+
+// Initialize default admin
+ensureDefaultAdmin();
 
 // Simple auth middleware
 const auth = (req, res, next) => {
+  // Ensure default admin exists (important for serverless)
+  ensureDefaultAdmin();
+  
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
@@ -85,6 +100,9 @@ const adminAuth = (req, res, next) => {
 // Auth routes
 app.post('/api/auth/register', (req, res) => {
   try {
+    // Ensure default admin exists
+    ensureDefaultAdmin();
+    
     const { email, password, firstName, lastName, phone, userType, grade, school, bio, hourlyRate, experience, location, emergencyContact } = req.body;
     
     // Validate required fields
@@ -172,6 +190,9 @@ app.post('/api/auth/register', (req, res) => {
 
 app.post('/api/auth/login', (req, res) => {
   try {
+    // Ensure default admin exists (important for serverless cold starts)
+    ensureDefaultAdmin();
+    
     const { email, password } = req.body;
     
     // Validate input
@@ -180,14 +201,17 @@ app.post('/api/auth/login', (req, res) => {
     }
     
     // Find user by email (case-insensitive)
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
     
     if (!user) {
+      console.log('Login attempt - User not found:', email.toLowerCase().trim());
+      console.log('Available users:', users.map(u => u.email));
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
-    // Check password
+    // Check password (exact match for demo, in production use bcrypt)
     if (user.password !== password) {
+      console.log('Login attempt - Password mismatch for:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
@@ -195,12 +219,16 @@ app.post('/api/auth/login', (req, res) => {
       return res.status(403).json({ error: 'Your account is deactivated. Please contact support.' });
     }
 
+    // Generate a new token for this session (important for serverless)
+    const newToken = `token_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    user.token = newToken;
+
     const userResponse = { ...user };
     delete userResponse.password;
 
     res.json({
       message: 'Login successful',
-      token: user.token,
+      token: newToken,
       user: userResponse
     });
   } catch (error) {
@@ -414,12 +442,14 @@ app.get('/api/admin/dashboard', auth, adminAuth, (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
+  ensureDefaultAdmin();
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     users: users.length,
-    bookings: bookings.length
+    bookings: bookings.length,
+    defaultAdminEmail: process.env.ADMIN_EMAIL || 'helbybest@gmail.com'
   });
 });
 
