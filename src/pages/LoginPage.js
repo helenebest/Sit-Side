@@ -40,6 +40,7 @@ const LoginPage = () => {
         } else {
           navigate('/student');
         }
+        // Note: Don't set loading to false here as we're navigating away
       } else {
         const errorMsg = result.error || 'Login failed. Please check your credentials and try again.';
         setError(errorMsg);
