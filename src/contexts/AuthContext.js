@@ -10,7 +10,7 @@ export const useAuth = () => {
   return context;
 };
 
-// API base URL - use relative path for Netlify, absolute for local dev
+// API base URL - use relative path for Vercel/Netlify, absolute for local dev
 const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api');
 
 // Safe localStorage wrapper for Chrome compatibility
