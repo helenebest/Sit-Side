@@ -30,6 +30,7 @@
   "overrides": {
     "glob": "^10.4.5",
     "rimraf": "^5.0.5",
+    "stable": "0.1.8",
     "rollup-plugin-terser": "npm:@rollup/plugin-terser@^7.0.2",
     "workbox-cacheable-response": "^7.1.0",
     "workbox-google-analytics": "^7.1.0",
