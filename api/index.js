@@ -61,7 +61,7 @@ function ensureDefaultAdmin() {
       firstName: 'Admin',
       lastName: 'Helen',
       userType: 'admin',
-      token: `admin_token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      token: `admin_token_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       createdAt: new Date(),
       isActive: true
     };
@@ -220,7 +220,7 @@ app.post('/api/auth/login', (req, res) => {
     }
 
     // Generate a new token for this session (important for serverless)
-    const newToken = `token_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newToken = `token_${user.id}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     user.token = newToken;
 
     const userResponse = { ...user };
@@ -233,7 +233,8 @@ app.post('/api/auth/login', (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Server error during login. Please try again.' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Server error during login. Please try again.' });
   }
 });
 
@@ -455,8 +456,13 @@ app.get('/api/health', (req, res) => {
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  console.error('Error:', err);
+  console.error('Stack:', err.stack);
+  // Send more detailed error in development, generic in production
+  const errorMessage = process.env.NODE_ENV === 'production' 
+    ? 'Something went wrong!' 
+    : err.message || 'Something went wrong!';
+  res.status(err.status || 500).json({ error: errorMessage });
 });
 
 // 404 handler
