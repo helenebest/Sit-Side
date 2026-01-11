@@ -10,12 +10,43 @@ export const useAuth = () => {
   return context;
 };
 
-// API base URL - use relative path for Netlify, absolute for local dev
-const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api');
+// API base URL - use relative path for Vercel/Netlify, absolute for local dev
+const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api');
 
-// Helper function to make authenticated requests
-const apiRequest = async (url, options = {}) => {
-  const token = localStorage.getItem('token');
+// Safe localStorage wrapper for Chrome compatibility
+const safeLocalStorage = {
+  getItem: (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      console.warn('localStorage not available:', error);
+      return null;
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn('localStorage setItem failed:', error);
+      // Chrome sometimes blocks localStorage in certain contexts
+    }
+  },
+  removeItem: (key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn('localStorage removeItem failed:', error);
+    }
+  }
+};
+
+// Helper function to make authenticated requests with timeout and retry logic
+const apiRequest = async (url, options = {}, retries = 2) => {
+  const token = safeLocalStorage.getItem('token');
+  
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
   
   const config = {
     headers: {
@@ -23,11 +54,13 @@ const apiRequest = async (url, options = {}) => {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
+    signal: controller.signal,
     ...options,
   };
 
   try {
     const response = await fetch(`${API_BASE_URL}${url}`, config);
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       let errorMessage = 'Request failed';
@@ -43,9 +76,21 @@ const apiRequest = async (url, options = {}) => {
     
     return response.json();
   } catch (error) {
+    clearTimeout(timeoutId);
+    
+    // Retry on network errors if retries remaining
+    if (retries > 0 && (error.name === 'AbortError' || (error instanceof TypeError && error.message.includes('fetch')))) {
+      // Wait 500ms before retry
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return apiRequest(url, options, retries - 1);
+    }
+    
     // Handle network errors
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. The backend server may not be running. Please start the backend server (see QUICK_START.md) and try again.');
+    }
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error('Network error. Please check your connection and try again.');
+      throw new Error('Cannot connect to backend server. Please make sure the backend server is running on port 5000 (see QUICK_START.md for instructions).');
     }
     throw error;
   }
@@ -55,20 +100,26 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is authenticated on app load
+  // Check if user is authenticated on app load (non-blocking)
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
+      // Set loading to false immediately so page can render
+      setLoading(false);
+      
+      const token = safeLocalStorage.getItem('token');
       if (token) {
+        // Verify auth in background (non-blocking) with timeout
         try {
           const data = await apiRequest('/auth/verify');
           setUser(data.user);
         } catch (error) {
           console.error('Auth verification failed:', error);
-          localStorage.removeItem('token');
+          // Only remove token on clear auth errors, not network errors
+          if (!error.message.includes('timeout') && !error.message.includes('Network error')) {
+            safeLocalStorage.removeItem('token');
+          }
         }
       }
-      setLoading(false);
     };
 
     checkAuth();
@@ -81,7 +132,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
-      localStorage.setItem('token', data.token);
+      safeLocalStorage.setItem('token', data.token);
       setUser(data.user);
       return { success: true, user: data.user };
     } catch (error) {
@@ -96,7 +147,7 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(userData),
       });
 
-      localStorage.setItem('token', data.token);
+      safeLocalStorage.setItem('token', data.token);
       setUser(data.user);
       return { success: true };
     } catch (error) {
@@ -105,7 +156,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    safeLocalStorage.removeItem('token');
     setUser(null);
   };
 

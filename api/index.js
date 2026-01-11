@@ -1,4 +1,4 @@
-// Netlify serverless function for API routes
+// Serverless function for API routes (works with both Vercel and Netlify)
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -17,13 +17,28 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting
+// Add timeout middleware to prevent hanging requests
+app.use((req, res, next) => {
+  // Set timeout to 8 seconds (slightly less than Netlify's 10 second limit)
+  req.setTimeout(8000, () => {
+    res.status(504).json({ error: 'Request timeout. Please try again.' });
+  });
+  next();
+});
+
+// Rate limiting - increased limits for better UX
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 200, // limit each IP to 200 requests per windowMs (increased from 100)
   message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  }
 });
-app.use(apiLimiter);
+app.use('/api', apiLimiter);
 
 // Simple in-memory storage (for demo - replace with MongoDB in production)
 let users = [];
@@ -31,22 +46,37 @@ let bookings = [];
 let nextUserId = 1;
 let nextBookingId = 1;
 
-// Create default admin user
-const defaultAdmin = {
-  id: 0,
-  email: process.env.ADMIN_EMAIL || 'helbybest@gmail.com',
-  password: process.env.ADMIN_PASSWORD || 'Tenacity2301!',
-  firstName: 'Admin',
-  lastName: 'Helen',
-  userType: 'admin',
-  token: `admin_token_${Date.now()}`,
-  createdAt: new Date(),
-  isActive: true
-};
-users.push(defaultAdmin);
+// Helper function to ensure default admin exists (important for serverless functions)
+function ensureDefaultAdmin() {
+  const adminEmail = process.env.ADMIN_EMAIL || 'helbybest@gmail.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'Tenacity2301!';
+  
+  // Check if admin already exists
+  const existingAdmin = users.find(u => u.email.toLowerCase() === adminEmail.toLowerCase());
+  if (!existingAdmin) {
+    const defaultAdmin = {
+      id: 0,
+      email: adminEmail,
+      password: adminPassword,
+      firstName: 'Admin',
+      lastName: 'Helen',
+      userType: 'admin',
+      token: `admin_token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date(),
+      isActive: true
+    };
+    users.push(defaultAdmin);
+  }
+}
+
+// Initialize default admin
+ensureDefaultAdmin();
 
 // Simple auth middleware
 const auth = (req, res, next) => {
+  // Ensure default admin exists (important for serverless)
+  ensureDefaultAdmin();
+  
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
@@ -69,56 +99,142 @@ const adminAuth = (req, res, next) => {
 
 // Auth routes
 app.post('/api/auth/register', (req, res) => {
-  const { email, password, firstName, lastName, phone, userType } = req.body;
-  
-  if (users.some(u => u.email === email)) {
-    return res.status(400).json({ error: 'User with this email already exists' });
+  try {
+    // Ensure default admin exists
+    ensureDefaultAdmin();
+    
+    const { email, password, firstName, lastName, phone, userType, grade, school, bio, hourlyRate, experience, location, emergencyContact } = req.body;
+    
+    // Validate required fields
+    if (!email || !password || !firstName || !lastName || !phone || !userType) {
+      return res.status(400).json({ error: 'Missing required fields: email, password, firstName, lastName, phone, userType' });
+    }
+    
+    // Check if user already exists
+    if (users.some(u => u.email === email)) {
+      return res.status(400).json({ error: 'User with this email already exists' });
+    }
+
+    // Validate userType
+    if (!['student', 'parent', 'admin'].includes(userType)) {
+      return res.status(400).json({ error: 'Invalid user type. Must be student, parent, or admin.' });
+    }
+
+    // Validate student-specific fields
+    if (userType === 'student') {
+      if (!grade || !school) {
+        return res.status(400).json({ error: 'Students must provide grade and school' });
+      }
+      if (grade < 9 || grade > 12) {
+        return res.status(400).json({ error: 'Grade must be between 9 and 12' });
+      }
+    }
+
+    const newUser = {
+      id: nextUserId++,
+      email: email.toLowerCase().trim(),
+      password, // In production, hash this password
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+      userType,
+      profilePicture: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
+      token: `token_${nextUserId}_${Date.now()}`,
+      createdAt: new Date(),
+      isActive: true,
+      rating: 0,
+      reviewCount: 0,
+      isVerified: true
+    };
+
+    // Add student-specific fields
+    if (userType === 'student') {
+      newUser.grade = parseInt(grade);
+      newUser.school = school.trim();
+      newUser.bio = bio ? bio.trim() : '';
+      newUser.hourlyRate = hourlyRate ? parseInt(hourlyRate) : 15;
+      newUser.experience = experience ? experience.trim() : '';
+      newUser.location = location ? location.trim() : '';
+      newUser.certifications = [];
+      newUser.availability = {
+        monday: { morning: false, afternoon: true, evening: true },
+        tuesday: { morning: false, afternoon: true, evening: true },
+        wednesday: { morning: false, afternoon: true, evening: true },
+        thursday: { morning: false, afternoon: true, evening: true },
+        friday: { morning: false, afternoon: true, evening: true },
+        saturday: { morning: true, afternoon: true, evening: true },
+        sunday: { morning: true, afternoon: true, evening: false }
+      };
+    }
+
+    // Add parent-specific fields
+    if (userType === 'parent') {
+      newUser.emergencyContact = emergencyContact ? emergencyContact.trim() : '';
+    }
+
+    users.push(newUser);
+
+    const userResponse = { ...newUser };
+    delete userResponse.password;
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token: newUser.token,
+      user: userResponse
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Server error during registration. Please try again.' });
   }
-
-  const newUser = {
-    id: nextUserId++,
-    email,
-    password, // In production, hash this password
-    firstName,
-    lastName,
-    phone,
-    userType,
-    profilePicture: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
-    token: `token_${nextUserId}_${Date.now()}`,
-    createdAt: new Date(),
-    isActive: true
-  };
-  users.push(newUser);
-
-  const userResponse = { ...newUser };
-  delete userResponse.password;
-
-  res.status(201).json({
-    message: 'User registered successfully',
-    token: newUser.token,
-    user: userResponse
-  });
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find(u => u.email === email && u.password === password);
+  try {
+    // Ensure default admin exists (important for serverless cold starts)
+    ensureDefaultAdmin();
+    
+    const { email, password } = req.body;
+    
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    // Find user by email (case-insensitive)
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
+    
+    if (!user) {
+      console.log('Login attempt - User not found:', email.toLowerCase().trim());
+      console.log('Available users:', users.map(u => u.email));
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    // Check password (exact match for demo, in production use bcrypt)
+    if (user.password !== password) {
+      console.log('Login attempt - Password mismatch for:', email);
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Your account is deactivated. Please contact support.' });
+    }
 
-  if (!user) {
-    return res.status(400).json({ error: 'Invalid credentials' });
+    // Generate a new token for this session (important for serverless)
+    const newToken = `token_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    user.token = newToken;
+
+    const userResponse = { ...user };
+    delete userResponse.password;
+
+    res.json({
+      message: 'Login successful',
+      token: newToken,
+      user: userResponse
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Server error during login. Please try again.' });
   }
-  if (!user.isActive) {
-    return res.status(403).json({ error: 'Your account is deactivated. Please contact support.' });
-  }
-
-  const userResponse = { ...user };
-  delete userResponse.password;
-
-  res.json({
-    message: 'Login successful',
-    token: user.token,
-    user: userResponse
-  });
 });
 
 app.get('/api/users/me', auth, (req, res) => {
@@ -326,12 +442,14 @@ app.get('/api/admin/dashboard', auth, adminAuth, (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
+  ensureDefaultAdmin();
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     users: users.length,
-    bookings: bookings.length
+    bookings: bookings.length,
+    defaultAdminEmail: process.env.ADMIN_EMAIL || 'helbybest@gmail.com'
   });
 });
 
