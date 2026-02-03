@@ -13,7 +13,7 @@ git push origin main
 ### 2. Deploy to Vercel
 1. Go to [vercel.com](https://vercel.com) and sign up with GitHub
 2. Click "New Project"
-3. Import your `windward-connect` repository
+3. Import your `sitside` repository
 4. Vercel will auto-detect it's a React app
 5. Click "Deploy"
 
@@ -61,7 +61,9 @@ NODE_ENV=production
 
 ### 3. Environment Variables
 ```
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sitside
+# ⚠️ IMPORTANT: Replace with YOUR actual MongoDB Atlas connection string
+# Get this from MongoDB Atlas Dashboard → Connect → Connect your application
+MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/sitside?retryWrites=true&w=majority
 JWT_SECRET=your-super-secure-secret-key
 ADMIN_EMAIL=admin@yourdomain.com
 ADMIN_PASSWORD=your-secure-password

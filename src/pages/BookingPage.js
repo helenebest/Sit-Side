@@ -1,12 +1,42 @@
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
+import { useAuth } from '../contexts/AuthContext';
+
+// Core students data - same as in ParentDashboard and StudentProfile
+const CORE_STUDENTS = [
+  {
+    id: 1001,
+    name: 'Helen Best',
+    hourlyRateRange: '$18 – $25 / hour',
+  },
+  {
+    id: 1002,
+    name: 'Ava Parker',
+    hourlyRateRange: '$20 / hour',
+  },
+  {
+    id: 1003,
+    name: 'Lilah Rubinson',
+    hourlyRateRange: '$20 / hour',
+  },
+  {
+    id: 1004,
+    name: 'Lila Owens',
+    hourlyRateRange: '$20 / hour',
+  },
+];
 
 const BookingPage = () => {
   const { studentId } = useParams();
+  const navigate = useNavigate();
+  const { getStudentProfile } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
+  const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [bookingData, setBookingData] = useState({
     date: '',
     startTime: '',
@@ -18,13 +48,78 @@ const BookingPage = () => {
     paymentMethod: 'card',
   });
 
-  // Mock student data
-  const student = {
-    id: parseInt(studentId),
-    name: 'Alex Thompson',
-    hourlyRate: 15,
-    rating: 4.8,
-  };
+  useEffect(() => {
+    const loadStudent = async () => {
+      setLoading(true);
+      setError(null);
+      
+      const id = parseInt(studentId);
+      
+      // First check if it's a core student
+      const coreStudent = CORE_STUDENTS.find(s => s.id === id);
+      if (coreStudent) {
+        setStudent({
+          id: coreStudent.id,
+          name: coreStudent.name,
+          hourlyRate: coreStudent.hourlyRateRange 
+            ? parseFloat(coreStudent.hourlyRateRange.replace(/[^0-9.]/g, '').split('–')[0]) || 15
+            : 15,
+          rating: null,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Otherwise, fetch from API
+      try {
+        const result = await getStudentProfile(studentId);
+        if (result.success && result.data) {
+          // Handle both API format and core student format
+          const studentData = result.data.student || result.data;
+          setStudent({
+            id: parseInt(studentId),
+            name: studentData.firstName && studentData.lastName 
+              ? `${studentData.firstName} ${studentData.lastName}`
+              : studentData.name || 'Student',
+            hourlyRate: studentData.hourlyRate || studentData.hourlyRateRange 
+              ? parseFloat((studentData.hourlyRateRange || '').replace(/[^0-9.]/g, '').split('–')[0]) || studentData.hourlyRate || 15
+              : 15,
+            rating: studentData.rating || null,
+          });
+        } else {
+          setError('Student not found');
+        }
+      } catch (err) {
+        setError(err.message || 'Failed to load student profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStudent();
+  }, [studentId, getStudentProfile]);
+
+  // If still loading or error, show loading/error state
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">Loading student profile...</div>
+      </div>
+    );
+  }
+
+  if (error || !student) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="p-6">
+          <div className="text-center text-red-600 mb-4">{error || 'Student not found'}</div>
+          <div className="text-center">
+            <OutlineButton onClick={() => navigate('/parent')}>Back to Search</OutlineButton>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const steps = ['Booking Details', 'Payment', 'Confirmation'];
 
@@ -44,13 +139,13 @@ const BookingPage = () => {
   };
 
   const calculateTotal = () => {
-    if (!bookingData.startTime || !bookingData.endTime) return 0;
+    if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
     
     const start = new Date(`2000-01-01T${bookingData.startTime}`);
     const end = new Date(`2000-01-01T${bookingData.endTime}`);
     const hours = (end - start) / (1000 * 60 * 60);
     
-    return Math.round(hours * student.hourlyRate * 100) / 100;
+    return Math.round(hours * (student.hourlyRate || 15) * 100) / 100;
   };
 
   const handleSubmit = () => {

@@ -3,8 +3,10 @@ import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
+import { useAuth } from '../contexts/AuthContext';
 
 const StudentDashboard = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
@@ -31,32 +33,13 @@ const StudentDashboard = () => {
     enabled: true,
   });
 
-  // Mock data
-  const bookings = [
-    {
-      id: 1,
-      parentName: 'Sarah Johnson',
-      date: '2024-01-15',
-      time: '6:00 PM - 10:00 PM',
-      status: 'confirmed',
-      amount: 60,
-      children: '2 kids (ages 5 & 8)',
-    },
-    {
-      id: 2,
-      parentName: 'Mike Chen',
-      date: '2024-01-18',
-      time: '4:00 PM - 8:00 PM',
-      status: 'pending',
-      amount: 60,
-      children: '1 kid (age 3)',
-    },
-  ];
+  // Bookings will be fetched from API in the future
+  const bookings = [];
 
   const earnings = {
-    thisMonth: 240,
-    total: 1200,
-    pending: 60,
+    thisMonth: 0,
+    total: 0,
+    pending: 0,
   };
 
   const handleTabChange = (newValue) => {
@@ -99,14 +82,31 @@ const StudentDashboard = () => {
           <Card className="p-6">
             <div className="flex items-center mb-4">
               <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl mr-4">
-                A
+                {user?.firstName?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || '?'}
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-neutral-dark">Alex Thompson</h3>
-                <p className="text-neutral-light">Grade 11 • Lincoln High School</p>
+                <h3 className="text-xl font-semibold text-neutral-dark">
+                  {user?.firstName && user?.lastName 
+                    ? `${user.firstName} ${user.lastName}` 
+                    : user?.name || 'Your Name'}
+                </h3>
+                <p className="text-neutral-light">
+                  {user?.grade ? `Grade ${user.grade}` : ''}
+                  {user?.grade && user?.school ? ' • ' : ''}
+                  {user?.school || 'Complete your profile'}
+                </p>
                 <div className="flex items-center mt-1">
-                  <span className="text-yellow-400 mr-1">⭐</span>
-                  <span className="text-sm text-neutral-dark">4.8 (24 reviews)</span>
+                  {user?.rating && user.rating > 0 ? (
+                    <>
+                      <span className="text-yellow-400 mr-1">⭐</span>
+                      <span className="text-sm text-neutral-dark">
+                        {user.rating?.toFixed(1)} 
+                        {user.reviewCount ? ` (${user.reviewCount} review${user.reviewCount !== 1 ? 's' : ''})` : ''}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-neutral-light">New sitter</span>
+                  )}
                 </div>
               </div>
             </div>
