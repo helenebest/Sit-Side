@@ -10,6 +10,8 @@ const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
+  const [certificationDialogOpen, setCertificationDialogOpen] = useState(false);
+  const [newCertification, setNewCertification] = useState('');
   const [profileData, setProfileData] = useState({
     bio: 'Experienced babysitter with CPR certification. Love working with kids of all ages!',
     hourlyRate: 15,
@@ -51,7 +53,51 @@ const StudentDashboard = () => {
   };
 
   const handleAvailabilityUpdate = () => {
+    if (!newAvailability.day || !newAvailability.timeSlot) {
+      return;
+    }
+
+    setProfileData((prev) => ({
+      ...prev,
+      availability: {
+        ...prev.availability,
+        [newAvailability.day]: {
+          ...prev.availability[newAvailability.day],
+          [newAvailability.timeSlot]: true,
+        },
+      },
+    }));
+
+    setNewAvailability({ day: '', timeSlot: '', enabled: true });
     setAvailabilityDialogOpen(false);
+  };
+
+  const handleAvailabilityToggle = (day, timeSlot) => {
+    setProfileData((prev) => ({
+      ...prev,
+      availability: {
+        ...prev.availability,
+        [day]: {
+          ...prev.availability[day],
+          [timeSlot]: !prev.availability[day][timeSlot],
+        },
+      },
+    }));
+  };
+
+  const handleCertificationAdd = () => {
+    const trimmed = newCertification.trim();
+    if (!trimmed) return;
+
+    setProfileData((prev) => ({
+      ...prev,
+      certifications: prev.certifications.includes(trimmed)
+        ? prev.certifications
+        : [...prev.certifications, trimmed],
+    }));
+
+    setNewCertification('');
+    setCertificationDialogOpen(false);
   };
 
   const getStatusColor = (status) => {
@@ -157,15 +203,24 @@ const StudentDashboard = () => {
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Quick Actions</h3>
             <div className="space-y-3">
               <OutlineButton 
-                onClick={() => setAvailabilityDialogOpen(true)} 
+                onClick={() => {
+                  setActiveTab(1);
+                  setAvailabilityDialogOpen(true);
+                }} 
                 className="w-full"
               >
                 📅 Update Availability
               </OutlineButton>
-              <OutlineButton className="w-full">
+              <OutlineButton
+                className="w-full"
+                onClick={() => setCertificationDialogOpen(true)}
+              >
                 ➕ Add Certification
               </OutlineButton>
-              <OutlineButton className="w-full">
+              <OutlineButton
+                className="w-full"
+                onClick={() => setActiveTab(2)}
+              >
                 👀 View Reviews
               </OutlineButton>
             </div>
@@ -245,7 +300,7 @@ const StudentDashboard = () => {
                         <input
                           type="checkbox"
                           checked={available}
-                          disabled
+                          onChange={() => handleAvailabilityToggle(day, timeSlot)}
                           className="mr-2"
                         />
                         <span className="text-sm text-neutral-dark capitalize">{timeSlot}</span>
@@ -366,6 +421,35 @@ const StudentDashboard = () => {
                 Cancel
               </OutlineButton>
               <PrimaryButton onClick={handleAvailabilityUpdate} className="flex-1">
+                Add
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Certification Dialog */}
+      {certificationDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold text-neutral-dark mb-4">Add Certification</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Certification</label>
+                <input
+                  type="text"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="e.g. CPR Certified"
+                  value={newCertification}
+                  onChange={(e) => setNewCertification(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <OutlineButton onClick={() => setCertificationDialogOpen(false)} className="flex-1">
+                Cancel
+              </OutlineButton>
+              <PrimaryButton onClick={handleCertificationAdd} className="flex-1">
                 Add
               </PrimaryButton>
             </div>
