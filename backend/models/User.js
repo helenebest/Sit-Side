@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema({
   
   // Common fields
   profileImage: { type: String },
+  // Optional mapping to a Slack user for notifications (typically students)
+  slackUserId: { type: String, trim: true },
   rating: { type: Number, default: 0, min: 0, max: 5 },
   reviewCount: { type: Number, default: 0 },
   isVerified: { type: Boolean, default: false },

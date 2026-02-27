@@ -232,6 +232,7 @@ router.get('/me', auth, async (req, res) => {
         isVerified: user.isVerified,
         isActive: user.isActive,
         backgroundCheckStatus: user.backgroundCheckStatus,
+        slackUserId: user.slackUserId,
         createdAt: user.createdAt
       }
     });
@@ -247,7 +248,7 @@ router.put('/profile', auth, async (req, res) => {
     const allowedUpdates = [
       'firstName', 'lastName', 'phone', 'bio', 'hourlyRate', 
       'experience', 'certifications', 'location', 'availability', 
-      'emergencyContact', 'profileImage'
+      'emergencyContact', 'profileImage', 'slackUserId'
     ];
     
     const updates = {};
@@ -287,7 +288,8 @@ router.put('/profile', auth, async (req, res) => {
         profileImage: user.profileImage,
         rating: user.rating,
         reviewCount: user.reviewCount,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        slackUserId: user.slackUserId,
       },
       message: 'Profile updated successfully'
     });

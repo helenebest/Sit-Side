@@ -216,6 +216,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const sendBookingMessage = async (bookingId, message) => {
+    try {
+      const data = await apiRequest(`/bookings/${bookingId}/message`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      });
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const updateBookingStatus = async (bookingId, status, reason = '') => {
     try {
       const data = await apiRequest(`/bookings/${bookingId}/status`, {
@@ -279,6 +292,7 @@ export const AuthProvider = ({ children }) => {
     getStudentProfile,
     createBooking,
     getMyBookings,
+    sendBookingMessage,
     updateBookingStatus,
     addReview,
     updateAvailability,
