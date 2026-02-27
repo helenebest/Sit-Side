@@ -2,6 +2,7 @@ const express = require('express');
 const Booking = require('../models/Booking');
 const User = require('../models/User');
 const { auth, requireStudentOrParent } = require('../middleware/auth');
+const { notifyBookingCreated, sendBookingMessageToStudent } = require('../services/slack');
 const router = express.Router();
 
 // Create new booking
@@ -15,7 +16,8 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       numberOfChildren,
       childrenAges,
       specialInstructions,
-      emergencyContact
+      emergencyContact,
+      parentMessage,
     } = req.body;
 
     // Validate required fields
@@ -60,13 +62,27 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       hourlyRate: student.hourlyRate
     });
 
+    // If parent included an initial message, store it in the conversation
+    if (parentMessage && parentMessage.trim()) {
+      booking.messages.push({
+        senderRole: 'parent',
+        source: 'web',
+        text: parentMessage.trim(),
+      });
+    }
+
     await booking.save();
 
     // Populate the booking with user details
     await booking.populate([
-      { path: 'student', select: 'firstName lastName email phone rating' },
+      { path: 'student', select: 'firstName lastName email phone rating slackUserId' },
       { path: 'parent', select: 'firstName lastName email phone' }
     ]);
+
+    // Fire-and-forget Slack notification (does not block response)
+    notifyBookingCreated(booking, parentMessage).catch((err) => {
+      console.error('Slack notifyBookingCreated error:', err);
+    });
 
     res.status(201).json({
       booking,
@@ -108,7 +124,7 @@ router.get('/my-bookings', auth, requireStudentOrParent, async (req, res) => {
 
     const bookings = await Booking.find(filter)
       .populate([
-        { path: 'student', select: 'firstName lastName email phone rating profileImage' },
+        { path: 'student', select: 'firstName lastName email phone rating profileImage slackUserId' },
         { path: 'parent', select: 'firstName lastName email phone profileImage' }
       ])
       .sort({ createdAt: -1 })
@@ -332,6 +348,58 @@ router.post('/:id/review', auth, requireStudentOrParent, async (req, res) => {
 
   } catch (error) {
     console.error('Add review error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Send follow-up message from parent to student about a booking (via Slack)
+router.post('/:id/message', auth, requireStudentOrParent, async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const booking = await Booking.findById(req.params.id).populate([
+      { path: 'student', select: 'firstName lastName email phone slackUserId' },
+      { path: 'parent', select: 'firstName lastName email phone' },
+    ]);
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    // Only the parent on the booking can send follow-up messages
+    if (req.user.userType !== 'parent' || booking.parent._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only the parent on this booking can send messages' });
+    }
+
+    // Optional: restrict messages to non-cancelled bookings
+    if (['cancelled'].includes(booking.status)) {
+      return res.status(400).json({ error: 'Cannot send messages for cancelled bookings' });
+    }
+
+    // Store message in booking conversation
+    booking.messages.push({
+      senderRole: 'parent',
+      source: 'web',
+      text: message.trim(),
+    });
+    await booking.save();
+
+    // Fire-and-forget Slack message
+    sendBookingMessageToStudent(booking, booking.parent, message).catch((err) => {
+      console.error('Slack sendBookingMessageToStudent error:', err);
+    });
+
+    res.json({
+      success: true,
+      message: 'Message sent to student',
+      booking,
+    });
+  } catch (error) {
+    console.error('Send booking message error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
