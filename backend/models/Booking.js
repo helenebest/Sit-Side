@@ -47,6 +47,22 @@ const bookingSchema = new mongoose.Schema({
     comment: { type: String, maxlength: 500 },
     createdAt: { type: Date }
   },
+
+  // Conversation/messages related to this booking (web or Slack)
+  messages: [
+    {
+      senderRole: { type: String, enum: ['parent', 'student', 'system'], required: true },
+      source: { type: String, enum: ['web', 'slack'], default: 'web' },
+      text: { type: String, required: true, maxlength: 2000 },
+      sentAt: { type: Date, default: Date.now },
+      slack: {
+        channel: String,
+        userId: String,
+        messageTs: String,
+        threadTs: String,
+      },
+    },
+  ],
   
   // Dispute information
   disputeReason: { type: String },
