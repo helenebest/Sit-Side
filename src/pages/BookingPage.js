@@ -32,7 +32,7 @@ const CORE_STUDENTS = [
 const BookingPage = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
-  const { getStudentProfile } = useAuth();
+  const { getStudentProfile, createBooking } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,10 @@ const BookingPage = () => {
     specialInstructions: '',
     emergencyContact: '',
     paymentMethod: 'card',
+    parentMessage: '',
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     const loadStudent = async () => {
@@ -148,8 +151,43 @@ const BookingPage = () => {
     return Math.round(hours * (student.hourlyRate || 15) * 100) / 100;
   };
 
-  const handleSubmit = () => {
-    console.log('Booking submitted:', bookingData);
+  const handleSubmit = async () => {
+    if (!student) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const payload = {
+        studentId: student.id,
+        date: bookingData.date,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        numberOfChildren: bookingData.numberOfChildren,
+        childrenAges: bookingData.childrenAges
+          ? bookingData.childrenAges
+              .split(',')
+              .map((age) => parseInt(age.trim(), 10))
+              .filter((n) => !Number.isNaN(n))
+          : [],
+        specialInstructions: bookingData.specialInstructions,
+        emergencyContact: bookingData.emergencyContact,
+        parentMessage: bookingData.parentMessage || '',
+      };
+
+      const result = await createBooking(payload);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create booking');
+      }
+
+      // On success, navigate back to parent dashboard or bookings page
+      navigate('/parent');
+    } catch (error) {
+      setSubmitError(error.message || 'Something went wrong while creating the booking.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderBookingDetails = () => (
@@ -338,11 +376,11 @@ const BookingPage = () => {
       <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center">
         <span className="text-green-600 mr-2">✓</span>
         <span className="text-green-800">
-          Your booking request has been sent to {student.name}. You will receive a confirmation once they accept.
+          Your booking request will be sent to {student.name}. You will receive a confirmation once they accept.
         </span>
       </div>
 
-      <Card className="p-6">
+      <Card className="p-6 mb-6">
         <h4 className="text-lg font-semibold text-neutral-dark mb-4">Booking Details</h4>
         <div className="space-y-3">
           <div className="flex justify-between">
@@ -366,6 +404,22 @@ const BookingPage = () => {
             <span className="text-primary">${calculateTotal()}</span>
           </div>
         </div>
+      </Card>
+
+      <Card className="p-6">
+        <h4 className="text-lg font-semibold text-neutral-dark mb-4">Message to Your Babysitter (Optional)</h4>
+        <p className="text-sm text-neutral-light mb-3">
+          This message will be sent to {student.name} via Slack along with your booking details so you can confirm
+          any important information in advance.
+        </p>
+        <textarea
+          name="parentMessage"
+          value={bookingData.parentMessage}
+          onChange={handleChange}
+          rows={4}
+          placeholder="Share arrival details, bedtime routines, parking info, or anything else your sitter should know."
+          className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
       </Card>
     </div>
   );
@@ -410,6 +464,12 @@ const BookingPage = () => {
           {activeStep === 2 && renderConfirmation()}
         </div>
         
+        {submitError && (
+          <div className="mt-4 text-sm text-red-600">
+            {submitError}
+          </div>
+        )}
+
         <div className="flex justify-between items-center pt-6 border-t border-gray-200">
           <OutlineButton
             onClick={handleBack}
@@ -421,8 +481,8 @@ const BookingPage = () => {
           
           <div>
             {activeStep === steps.length - 1 ? (
-              <PrimaryButton onClick={handleSubmit}>
-                ✓ Complete Booking
+              <PrimaryButton onClick={handleSubmit} disabled={submitting}>
+                {submitting ? 'Submitting...' : '✓ Complete Booking'}
               </PrimaryButton>
             ) : (
               <PrimaryButton
