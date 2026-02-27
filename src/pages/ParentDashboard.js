@@ -75,7 +75,7 @@ const CORE_STUDENTS = [
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
-  const { getStudents } = useAuth();
+  const { getStudents, getMyBookings, sendBookingMessage } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [searchFilters, setSearchFilters] = useState({
     location: '',
@@ -89,27 +89,16 @@ const ParentDashboard = () => {
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError, setStudentsError] = useState('');
 
-  // Mock booking data
-  const bookings = [
-    {
-      id: 1,
-      studentName: 'Alex Thompson',
-      date: '2024-01-15',
-      time: '6:00 PM - 10:00 PM',
-      status: 'confirmed',
-      amount: 60,
-      children: '2 kids (ages 5 & 8)',
-    },
-    {
-      id: 2,
-      studentName: 'Emma Rodriguez',
-      date: '2024-01-18',
-      time: '4:00 PM - 8:00 PM',
-      status: 'pending',
-      amount: 72,
-      children: '1 kid (age 3)',
-    },
-  ];
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+  const [bookingsError, setBookingsError] = useState('');
+
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [messageText, setMessageText] = useState('');
+  const [messageSubmitting, setMessageSubmitting] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const [messageSuccess, setMessageSuccess] = useState('');
 
   const handleTabChange = (newValue) => {
     setActiveTab(newValue);
@@ -142,9 +131,8 @@ const ParentDashboard = () => {
 
         if (result.success) {
           // Prevent duplicates: filter out students that match core students by ID
-          // Note: For testing, we only filter by ID (not name) so core group members
-          // (Ava, Lila, Lilah) can create test accounts and see their own profiles.
-          // In production, you may want to also filter by name/email to prevent true duplicates.
+          // Note: For testing, we only filter by ID (not name) so core group group members
+          // can create test accounts and see their own profiles.
           const coreIds = new Set(CORE_STUDENTS.map((student) => String(student.id)));
           const uniqueStudents = (result.data || []).filter(
             (student) => !coreIds.has(String(student.id)),
@@ -164,12 +152,38 @@ const ParentDashboard = () => {
       }
     };
 
+    const loadBookings = async () => {
+      setBookingsLoading(true);
+      setBookingsError('');
+      try {
+        const result = await getMyBookings();
+        if (!isMounted) {
+          return;
+        }
+
+        if (result.success) {
+          setBookings(result.data.bookings || []);
+        } else {
+          setBookingsError(result.error || 'Unable to fetch bookings.');
+        }
+      } catch (error) {
+        if (isMounted) {
+          setBookingsError(error.message || 'Unable to fetch bookings.');
+        }
+      } finally {
+        if (isMounted) {
+          setBookingsLoading(false);
+        }
+      }
+    };
+
     loadStudents();
+    loadBookings();
 
     return () => {
       isMounted = false;
     };
-  }, [getStudents]);
+  }, [getStudents, getMyBookings]);
 
   const students = useMemo(() => {
     if (!fetchedStudents.length) {
@@ -216,6 +230,37 @@ const ParentDashboard = () => {
       case 'pending': return '⏳';
       case 'cancelled': return '✗';
       default: return null;
+    }
+  };
+
+  const handleOpenMessageDialog = (booking) => {
+    setSelectedBooking(booking);
+    setMessageText('');
+    setMessageError('');
+    setMessageSuccess('');
+    setMessageDialogOpen(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedBooking || !messageText.trim()) {
+      setMessageError('Please enter a message.');
+      return;
+    }
+
+    setMessageSubmitting(true);
+    setMessageError('');
+    setMessageSuccess('');
+
+    try {
+      const result = await sendBookingMessage(selectedBooking._id, messageText.trim());
+      if (!result.success) {
+        throw new Error(result.error || 'Unable to send message.');
+      }
+      setMessageSuccess('Message sent to your babysitter via Slack.');
+    } catch (error) {
+      setMessageError(error.message || 'Unable to send message.');
+    } finally {
+      setMessageSubmitting(false);
     }
   };
 
@@ -388,27 +433,56 @@ const ParentDashboard = () => {
           {activeTab === 1 && (
             <div>
               <h3 className="text-xl font-semibold text-neutral-dark mb-4">Your Bookings</h3>
-              {bookings.length === 0 ? (
+              {bookingsError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {bookingsError}
+                </div>
+              )}
+              {bookingsLoading ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-800">
+                  Loading your bookings…
+                </div>
+              ) : bookings.length === 0 ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-800">
                   No bookings yet. Browse available babysitters to get started!
                 </div>
               ) : (
                 <div className="space-y-4">
                   {bookings.map((booking) => (
-                    <div key={booking.id} className="flex items-center p-4 bg-gray-50 rounded-xl">
+                    <div key={booking._id} className="flex items-center p-4 bg-gray-50 rounded-xl">
                       <div className="flex-shrink-0 mr-4">
                         <span className="text-lg">{getStatusIcon(booking.status)}</span>
                       </div>
                       <div className="flex-grow">
                         <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-semibold text-neutral-dark">{booking.studentName}</h4>
+                          <h4 className="font-semibold text-neutral-dark">
+                            {booking.student
+                              ? `${booking.student.firstName} ${booking.student.lastName}`.trim()
+                              : 'Babysitter'}
+                          </h4>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
                             {booking.status}
                           </span>
                         </div>
-                        <p className="text-sm text-neutral-light">{booking.date} • {booking.time}</p>
-                        <p className="text-sm text-neutral-light">{booking.children}</p>
-                        <p className="text-sm font-medium text-primary">${booking.amount}</p>
+                        <p className="text-sm text-neutral-light">
+                          {booking.date ? new Date(booking.date).toLocaleDateString() : ''} •{' '}
+                          {booking.startTime} – {booking.endTime}
+                        </p>
+                        <p className="text-sm text-neutral-light">
+                          {booking.numberOfChildren} child(ren){' '}
+                          {Array.isArray(booking.childrenAges) && booking.childrenAges.length > 0
+                            ? ` (ages ${booking.childrenAges.join(', ')})`
+                            : ''}
+                        </p>
+                        <p className="text-sm font-medium text-primary">${booking.totalAmount}</p>
+                      </div>
+                      <div className="ml-4 flex flex-col gap-2">
+                        <OutlineButton
+                          onClick={() => handleOpenMessageDialog(booking)}
+                          className="whitespace-nowrap"
+                        >
+                          💬 Message sitter
+                        </OutlineButton>
                       </div>
                     </div>
                   ))}
@@ -483,6 +557,58 @@ const ParentDashboard = () => {
               </OutlineButton>
               <PrimaryButton onClick={handleBookingSubmit} className="flex-1">
                 Send Booking Request
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Sitter Dialog */}
+      {messageDialogOpen && selectedBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold text-neutral-dark mb-4">
+              Message {selectedBooking.student
+                ? `${selectedBooking.student.firstName} ${selectedBooking.student.lastName}`.trim()
+                : 'your babysitter'}
+            </h3>
+            <p className="text-sm text-neutral-light mb-3">
+              This message will be sent to your babysitter via Slack using the contact details associated with this
+              booking.
+            </p>
+            <textarea
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              rows={4}
+              placeholder="Share arrival time, parking details, bedtime routines, or other updates."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+            />
+            {messageError && (
+              <div className="mt-3 text-sm text-red-600">
+                {messageError}
+              </div>
+            )}
+            {messageSuccess && (
+              <div className="mt-3 text-sm text-green-600">
+                {messageSuccess}
+              </div>
+            )}
+            <div className="flex gap-3 mt-6">
+              <OutlineButton
+                onClick={() => {
+                  setMessageDialogOpen(false);
+                  setSelectedBooking(null);
+                }}
+                className="flex-1"
+              >
+                Close
+              </OutlineButton>
+              <PrimaryButton
+                onClick={handleSendMessage}
+                className="flex-1"
+                disabled={messageSubmitting}
+              >
+                {messageSubmitting ? 'Sending…' : 'Send Message'}
               </PrimaryButton>
             </div>
           </div>
