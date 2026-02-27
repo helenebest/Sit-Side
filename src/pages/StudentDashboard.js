@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
@@ -6,7 +6,7 @@ import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 
 const StudentDashboard = () => {
-  const { user } = useAuth();
+  const { user, getMyBookings } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
@@ -27,16 +27,20 @@ const StudentDashboard = () => {
       saturday: { morning: true, afternoon: true, evening: true },
       sunday: { morning: true, afternoon: true, evening: false },
     },
+    slackUserId: user?.slackUserId || '',
   });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
 
   const [newAvailability, setNewAvailability] = useState({
     day: '',
     timeSlot: '',
     enabled: true,
   });
-
-  // Bookings will be fetched from API in the future
-  const bookings = [];
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+  const [bookingsError, setBookingsError] = useState('');
 
   const earnings = {
     thisMonth: 0,
@@ -48,8 +52,50 @@ const StudentDashboard = () => {
     setActiveTab(newValue);
   };
 
-  const handleProfileUpdate = () => {
-    setProfileDialogOpen(false);
+  const handleProfileUpdate = async () => {
+    setProfileSaving(true);
+    setProfileError('');
+    setProfileSuccess('');
+
+    try {
+      // For now we only send fields that map directly to backend profile fields
+      // (bio, hourlyRate, experience, location, slackUserId)
+      // Availability and certifications are handled by separate flows.
+      const { bio, hourlyRate, experience, location, slackUserId } = profileData;
+
+      const response = await fetch(
+        (process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api')) +
+          '/auth/profile',
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(localStorage.getItem('token')
+              ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            bio,
+            hourlyRate,
+            experience,
+            location,
+            slackUserId: slackUserId?.trim() || '',
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
+
+      setProfileSuccess('Profile updated successfully.');
+      setProfileDialogOpen(false);
+    } catch (error) {
+      setProfileError(error.message || 'Failed to update profile.');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleAvailabilityUpdate = () => {
@@ -117,6 +163,38 @@ const StudentDashboard = () => {
       default: return null;
     }
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadBookings = async () => {
+      setBookingsLoading(true);
+      setBookingsError('');
+      try {
+        const result = await getMyBookings();
+        if (!isMounted) return;
+        if (result.success) {
+          setBookings(result.data.bookings || []);
+        } else {
+          setBookingsError(result.error || 'Unable to fetch bookings.');
+        }
+      } catch (error) {
+        if (isMounted) {
+          setBookingsError(error.message || 'Unable to fetch bookings.');
+        }
+      } finally {
+        if (isMounted) {
+          setBookingsLoading(false);
+        }
+      }
+    };
+
+    loadBookings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getMyBookings]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -253,27 +331,58 @@ const StudentDashboard = () => {
           {activeTab === 0 && (
             <div>
               <h3 className="text-xl font-semibold text-neutral-dark mb-4">Your Bookings</h3>
-              {bookings.length === 0 ? (
+              {bookingsError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {bookingsError}
+                </div>
+              )}
+              {bookingsLoading ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-800">
+                  Loading your bookings…
+                </div>
+              ) : bookings.length === 0 ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-800">
                   No bookings yet. Update your availability to start getting requests!
                 </div>
               ) : (
                 <div className="space-y-4">
                   {bookings.map((booking) => (
-                    <div key={booking.id} className="flex items-center p-4 bg-gray-50 rounded-xl">
+                    <div key={booking._id} className="flex items-center p-4 bg-gray-50 rounded-xl">
                       <div className="flex-shrink-0 mr-4">
                         <span className="text-lg">{getStatusIcon(booking.status)}</span>
                       </div>
                       <div className="flex-grow">
                         <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-semibold text-neutral-dark">{booking.parentName}</h4>
+                          <h4 className="font-semibold text-neutral-dark">
+                            {booking.parent
+                              ? `${booking.parent.firstName} ${booking.parent.lastName}`.trim()
+                              : 'Parent'}
+                          </h4>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
                             {booking.status}
                           </span>
                         </div>
-                        <p className="text-sm text-neutral-light">{booking.date} • {booking.time}</p>
-                        <p className="text-sm text-neutral-light">{booking.children}</p>
-                        <p className="text-sm font-medium text-primary">${booking.amount}</p>
+                        <p className="text-sm text-neutral-light">
+                          {booking.date ? new Date(booking.date).toLocaleDateString() : ''} •{' '}
+                          {booking.startTime} – {booking.endTime}
+                        </p>
+                        <p className="text-sm text-neutral-light">
+                          {booking.numberOfChildren} child(ren){' '}
+                          {Array.isArray(booking.childrenAges) && booking.childrenAges.length > 0
+                            ? ` (ages ${booking.childrenAges.join(', ')})`
+                            : ''}
+                        </p>
+                        <p className="text-sm font-medium text-primary">${booking.totalAmount}</p>
+                        {Array.isArray(booking.messages) && booking.messages.length > 0 && (
+                          <p className="mt-2 text-xs text-neutral-light">
+                            Last message from{' '}
+                            {booking.messages[booking.messages.length - 1].senderRole === 'parent'
+                              ? 'parent'
+                              : 'you'}{' '}
+                            via {booking.messages[booking.messages.length - 1].source === 'slack' ? 'Slack' : 'web'}
+                            : "{booking.messages[booking.messages.length - 1].text}"
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -366,13 +475,39 @@ const StudentDashboard = () => {
                   onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">
+                  Slack User ID (optional)
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="e.g. U012ABCDE"
+                  value={profileData.slackUserId}
+                  onChange={(e) => setProfileData({ ...profileData, slackUserId: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-neutral-light">
+                  Used to send you booking messages via Slack. You can find this in your Slack profile
+                  or from your admin.
+                </p>
+              </div>
+              {profileError && (
+                <div className="text-sm text-red-600">
+                  {profileError}
+                </div>
+              )}
+              {profileSuccess && (
+                <div className="text-sm text-green-600">
+                  {profileSuccess}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <OutlineButton onClick={() => setProfileDialogOpen(false)} className="flex-1">
                 Cancel
               </OutlineButton>
-              <PrimaryButton onClick={handleProfileUpdate} className="flex-1">
-                Save
+              <PrimaryButton onClick={handleProfileUpdate} className="flex-1" disabled={profileSaving}>
+                {profileSaving ? 'Saving…' : 'Save'}
               </PrimaryButton>
             </div>
           </div>
