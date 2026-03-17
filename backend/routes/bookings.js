@@ -352,7 +352,7 @@ router.post('/:id/review', auth, requireStudentOrParent, async (req, res) => {
   }
 });
 
-// Send follow-up message from parent to student about a booking (via Slack)
+// Send message about a booking (parent → student or student → parent). Stored in-app; parent→student also sent via Slack if configured.
 router.post('/:id/message', auth, requireStudentOrParent, async (req, res) => {
   try {
     const { message } = req.body;
@@ -370,32 +370,35 @@ router.post('/:id/message', auth, requireStudentOrParent, async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
-    // Only the parent on the booking can send follow-up messages
-    if (req.user.userType !== 'parent' || booking.parent._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Only the parent on this booking can send messages' });
+    const isParent = req.user.userType === 'parent' && booking.parent._id.toString() === req.user._id.toString();
+    const isStudent = req.user.userType === 'student' && booking.student._id.toString() === req.user._id.toString();
+
+    if (!isParent && !isStudent) {
+      return res.status(403).json({ error: 'Only the parent or student on this booking can send messages' });
     }
 
-    // Optional: restrict messages to non-cancelled bookings
     if (['cancelled'].includes(booking.status)) {
       return res.status(400).json({ error: 'Cannot send messages for cancelled bookings' });
     }
 
-    // Store message in booking conversation
+    const senderRole = isParent ? 'parent' : 'student';
     booking.messages.push({
-      senderRole: 'parent',
+      senderRole,
       source: 'web',
       text: message.trim(),
     });
     await booking.save();
 
-    // Fire-and-forget Slack message
-    sendBookingMessageToStudent(booking, booking.parent, message).catch((err) => {
-      console.error('Slack sendBookingMessageToStudent error:', err);
-    });
+    // Optional: when parent sends, also send to student via Slack
+    if (isParent) {
+      sendBookingMessageToStudent(booking, booking.parent, message).catch((err) => {
+        console.error('Slack sendBookingMessageToStudent error:', err);
+      });
+    }
 
     res.json({
       success: true,
-      message: 'Message sent to student',
+      message: isParent ? 'Message sent to student' : 'Message sent to parent',
       booking,
     });
   } catch (error) {
