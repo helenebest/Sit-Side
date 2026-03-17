@@ -20,6 +20,13 @@ const Navbar = () => {
           <nav className="navbar-nav hidden md:flex">
             <a className="navbar-link" href="#how">How it Works</a>
             <a className="navbar-link" href="#featured">Sitters</a>
+            <button
+              type="button"
+              className="navbar-link"
+              onClick={() => navigate('/messages')}
+            >
+              Messaging
+            </button>
             <a className="navbar-link" href="#safety">Safety</a>
             <a className="navbar-link" href="#testimonials">Reviews</a>
           </nav>
