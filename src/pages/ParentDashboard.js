@@ -256,7 +256,14 @@ const ParentDashboard = () => {
       if (!result.success) {
         throw new Error(result.error || 'Unable to send message.');
       }
-      setMessageSuccess('Message sent to your babysitter via Slack.');
+      setMessageSuccess('Message sent.');
+      setMessageText('');
+      if (result.data && result.data.booking) {
+        setSelectedBooking(result.data.booking);
+        setBookings((prev) =>
+          prev.map((b) => (b._id === result.data.booking._id ? result.data.booking : b))
+        );
+      }
     } catch (error) {
       setMessageError(error.message || 'Unable to send message.');
     } finally {
@@ -566,34 +573,63 @@ const ParentDashboard = () => {
       {/* Message Sitter Dialog */}
       {messageDialogOpen && selectedBooking && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-semibold text-neutral-dark mb-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col">
+            <h3 className="text-xl font-semibold text-neutral-dark mb-2">
               Message {selectedBooking.student
                 ? `${selectedBooking.student.firstName} ${selectedBooking.student.lastName}`.trim()
                 : 'your babysitter'}
             </h3>
             <p className="text-sm text-neutral-light mb-3">
-              This message will be sent to your babysitter via Slack using the contact details associated with this
-              booking.
+              Conversation for this booking. All messages are visible here and to your sitter on the site.
             </p>
+            {/* Message thread */}
+            <div className="flex-1 min-h-0 overflow-y-auto mb-4 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3 max-h-48">
+              {Array.isArray(selectedBooking.messages) && selectedBooking.messages.length > 0 ? (
+                selectedBooking.messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded-lg px-3 py-2 text-sm ${
+                      msg.senderRole === 'parent'
+                        ? 'bg-primary/10 text-neutral-dark ml-4'
+                        : 'bg-gray-200 text-neutral-dark mr-4'
+                    }`}
+                  >
+                    <span className="font-medium text-xs text-neutral-light block mb-0.5">
+                      {msg.senderRole === 'parent' ? 'You' : 'Babysitter'}
+                      {msg.sentAt && (
+                        <span className="ml-2">
+                          {new Date(msg.sentAt).toLocaleString(undefined, {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-neutral-dark">{msg.text}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-neutral-light italic">No messages yet. Send one below.</p>
+              )}
+            </div>
             <textarea
               className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              rows={4}
+              rows={3}
               placeholder="Share arrival time, parking details, bedtime routines, or other updates."
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
             />
             {messageError && (
-              <div className="mt-3 text-sm text-red-600">
+              <div className="mt-2 text-sm text-red-600">
                 {messageError}
               </div>
             )}
             {messageSuccess && (
-              <div className="mt-3 text-sm text-green-600">
+              <div className="mt-2 text-sm text-green-600">
                 {messageSuccess}
               </div>
             )}
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-4">
               <OutlineButton
                 onClick={() => {
                   setMessageDialogOpen(false);
