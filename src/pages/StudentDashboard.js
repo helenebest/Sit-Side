@@ -6,7 +6,7 @@ import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 
 const StudentDashboard = () => {
-  const { user, getMyBookings } = useAuth();
+  const { user, getMyBookings, sendBookingMessage } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
@@ -41,6 +41,13 @@ const StudentDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState('');
+
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [selectedBookingForMessage, setSelectedBookingForMessage] = useState(null);
+  const [messageText, setMessageText] = useState('');
+  const [messageSubmitting, setMessageSubmitting] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const [messageSuccess, setMessageSuccess] = useState('');
 
   const earnings = {
     thisMonth: 0,
@@ -161,6 +168,40 @@ const StudentDashboard = () => {
       case 'pending': return '⏳';
       case 'cancelled': return '✗';
       default: return null;
+    }
+  };
+
+  const handleOpenMessageDialog = (booking) => {
+    setSelectedBookingForMessage(booking);
+    setMessageText('');
+    setMessageError('');
+    setMessageSuccess('');
+    setMessageDialogOpen(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedBookingForMessage || !messageText.trim()) {
+      setMessageError('Please enter a message.');
+      return;
+    }
+    setMessageSubmitting(true);
+    setMessageError('');
+    setMessageSuccess('');
+    try {
+      const result = await sendBookingMessage(selectedBookingForMessage._id, messageText.trim());
+      if (!result.success) throw new Error(result.error || 'Unable to send message.');
+      setMessageSuccess('Message sent.');
+      setMessageText('');
+      if (result.data && result.data.booking) {
+        setSelectedBookingForMessage(result.data.booking);
+        setBookings((prev) =>
+          prev.map((b) => (b._id === result.data.booking._id ? result.data.booking : b))
+        );
+      }
+    } catch (error) {
+      setMessageError(error.message || 'Unable to send message.');
+    } finally {
+      setMessageSubmitting(false);
     }
   };
 
@@ -375,14 +416,17 @@ const StudentDashboard = () => {
                         <p className="text-sm font-medium text-primary">${booking.totalAmount}</p>
                         {Array.isArray(booking.messages) && booking.messages.length > 0 && (
                           <p className="mt-2 text-xs text-neutral-light">
-                            Last message from{' '}
-                            {booking.messages[booking.messages.length - 1].senderRole === 'parent'
-                              ? 'parent'
-                              : 'you'}{' '}
-                            via {booking.messages[booking.messages.length - 1].source === 'slack' ? 'Slack' : 'web'}
-                            : "{booking.messages[booking.messages.length - 1].text}"
+                            {booking.messages.length} message{booking.messages.length !== 1 ? 's' : ''} in thread
                           </p>
                         )}
+                      </div>
+                      <div className="ml-4 flex flex-col gap-2">
+                        <OutlineButton
+                          onClick={() => handleOpenMessageDialog(booking)}
+                          className="whitespace-nowrap"
+                        >
+                          💬 Message parent
+                        </OutlineButton>
                       </div>
                     </div>
                   ))}
@@ -586,6 +630,78 @@ const StudentDashboard = () => {
               </OutlineButton>
               <PrimaryButton onClick={handleCertificationAdd} className="flex-1">
                 Add
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Parent Dialog */}
+      {messageDialogOpen && selectedBookingForMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col">
+            <h3 className="text-xl font-semibold text-neutral-dark mb-2">
+              Message {selectedBookingForMessage.parent
+                ? `${selectedBookingForMessage.parent.firstName} ${selectedBookingForMessage.parent.lastName}`.trim()
+                : 'parent'}
+            </h3>
+            <p className="text-sm text-neutral-light mb-3">
+              Conversation for this booking. All messages are visible here and to the parent on the site.
+            </p>
+            <div className="flex-1 min-h-0 overflow-y-auto mb-4 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3 max-h-48">
+              {Array.isArray(selectedBookingForMessage.messages) && selectedBookingForMessage.messages.length > 0 ? (
+                selectedBookingForMessage.messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded-lg px-3 py-2 text-sm ${
+                      msg.senderRole === 'student'
+                        ? 'bg-primary/10 text-neutral-dark ml-4'
+                        : 'bg-gray-200 text-neutral-dark mr-4'
+                    }`}
+                  >
+                    <span className="font-medium text-xs text-neutral-light block mb-0.5">
+                      {msg.senderRole === 'student' ? 'You' : 'Parent'}
+                      {msg.sentAt && (
+                        <span className="ml-2">
+                          {new Date(msg.sentAt).toLocaleString(undefined, {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-neutral-dark">{msg.text}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-neutral-light italic">No messages yet. Send one below.</p>
+              )}
+            </div>
+            <textarea
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              rows={3}
+              placeholder="Reply to the parent or ask a question about the booking."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+            />
+            {messageError && <div className="mt-2 text-sm text-red-600">{messageError}</div>}
+            {messageSuccess && <div className="mt-2 text-sm text-green-600">{messageSuccess}</div>}
+            <div className="flex gap-3 mt-4">
+              <OutlineButton
+                onClick={() => {
+                  setMessageDialogOpen(false);
+                  setSelectedBookingForMessage(null);
+                }}
+                className="flex-1"
+              >
+                Close
+              </OutlineButton>
+              <PrimaryButton
+                onClick={handleSendMessage}
+                className="flex-1"
+                disabled={messageSubmitting}
+              >
+                {messageSubmitting ? 'Sending…' : 'Send Message'}
               </PrimaryButton>
             </div>
           </div>
