@@ -1,77 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
-
-const CORE_STUDENTS = [
-  {
-    id: 1001,
-    name: 'Helen Best',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$18 – $25 / hour',
-    location: 'Venice, Los Angeles',
-    locationRange: 'Westside of LA and Santa Monica',
-    bio: 'Experienced babysitter with retail experience. Math tutoring also available. Love working with kids of all ages!',
-    certifications: ['California Licensed Driver'],
-    availability: 'Saturdays, evenings after 5:30 PM',
-    experience: '2 years',
-    image: null,
-  },
-  {
-    id: 1002,
-    name: 'Ava Parker',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$20 / hour',
-    location: 'Ladera Heights',
-    locationRange: 'Los Angeles and Santa Monica',
-    bio: 'Responsible and caring babysitter, coach (softball and volleyball), and tutor. Great with toddlers and school-age children.',
-    certifications: ['California Licensed Driver', 'Youth Sports Coach'],
-    availability: 'Afternoons, weekends',
-    experience: '2 years',
-    image: null,
-  },
-  {
-    id: 1003,
-    name: 'Lilah Rubinson',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$20 / hour',
-    location: 'Hancock Park / Mid Wilshire',
-    locationRange: 'Greater Los Angeles Area',
-    bio: 'Very experienced babysitter for kids of all ages.',
-    certifications: ['California Licensed Driver'],
-    availability: 'Monday–Friday 5:30-10:30 PM',
-    experience: '1 year',
-    image: null,
-  },
-  {
-    id: 1004,
-    name: 'Lila Owens',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$20 / hour',
-    location: 'Westwood',
-    locationRange: 'Santa Monica, Brentwood, Westwood, Marina Del Rey and Pacific Palisades',
-    bio: 'A responsible and caring babysitter with experience caring for children ages 3+, ensuring their safety and keeping them engaged through fun and educational activities',
-    certifications: ['California Licensed Driver'],
-    availability: 'Evenings, weekends',
-    experience: '2 years',
-    image: null,
-  },
-];
+import {
+  normalizeStudentForListing,
+  studentsFromApiResponse,
+} from '../utils/studentDisplay';
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
@@ -85,7 +22,7 @@ const ParentDashboard = () => {
   });
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [fetchedStudents, setFetchedStudents] = useState([]);
+  const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError, setStudentsError] = useState('');
 
@@ -130,14 +67,12 @@ const ParentDashboard = () => {
         }
 
         if (result.success) {
-          // Prevent duplicates: filter out students that match core students by ID
-          // Note: For testing, we only filter by ID (not name) so core group group members
-          // can create test accounts and see their own profiles.
-          const coreIds = new Set(CORE_STUDENTS.map((student) => String(student.id)));
-          const uniqueStudents = (result.data || []).filter(
-            (student) => !coreIds.has(String(student.id)),
+          const rawList = studentsFromApiResponse(result.data);
+          setStudents(
+            rawList
+              .map((s) => normalizeStudentForListing(s))
+              .filter(Boolean)
           );
-          setFetchedStudents(uniqueStudents);
         } else {
           setStudentsError(result.error || 'Unable to fetch students.');
         }
@@ -184,13 +119,6 @@ const ParentDashboard = () => {
       isMounted = false;
     };
   }, [getStudents, getMyBookings]);
-
-  const students = useMemo(() => {
-    if (!fetchedStudents.length) {
-      return CORE_STUDENTS;
-    }
-    return [...CORE_STUDENTS, ...fetchedStudents];
-  }, [fetchedStudents]);
 
   const renderRate = (student) => {
     if (student.hourlyRateRange) {

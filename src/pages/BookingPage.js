@@ -5,30 +5,6 @@ import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 
-// Core students data - same as in ParentDashboard and StudentProfile
-const CORE_STUDENTS = [
-  {
-    id: 1001,
-    name: 'Helen Best',
-    hourlyRateRange: '$18 – $25 / hour',
-  },
-  {
-    id: 1002,
-    name: 'Ava Parker',
-    hourlyRateRange: '$20 / hour',
-  },
-  {
-    id: 1003,
-    name: 'Lilah Rubinson',
-    hourlyRateRange: '$20 / hour',
-  },
-  {
-    id: 1004,
-    name: 'Lila Owens',
-    hourlyRateRange: '$20 / hour',
-  },
-];
-
 const BookingPage = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
@@ -55,38 +31,32 @@ const BookingPage = () => {
     const loadStudent = async () => {
       setLoading(true);
       setError(null);
-      
-      const id = parseInt(studentId);
-      
-      // First check if it's a core student
-      const coreStudent = CORE_STUDENTS.find(s => s.id === id);
-      if (coreStudent) {
-        setStudent({
-          id: coreStudent.id,
-          name: coreStudent.name,
-          hourlyRate: coreStudent.hourlyRateRange 
-            ? parseFloat(coreStudent.hourlyRateRange.replace(/[^0-9.]/g, '').split('–')[0]) || 15
-            : 15,
-          rating: null,
-        });
+
+      if (!studentId) {
+        setError('Student not found');
         setLoading(false);
         return;
       }
 
-      // Otherwise, fetch from API
       try {
         const result = await getStudentProfile(studentId);
         if (result.success && result.data) {
-          // Handle both API format and core student format
           const studentData = result.data.student || result.data;
+          const name =
+            studentData.firstName && studentData.lastName
+              ? `${studentData.firstName} ${studentData.lastName}`.trim()
+              : studentData.name || 'Student';
+          let hourlyRate = studentData.hourlyRate;
+          if (hourlyRate == null && studentData.hourlyRateRange) {
+            const parsed = parseFloat(
+              String(studentData.hourlyRateRange).replace(/[^0-9.-]/g, '').split(/[–-]/)[0]
+            );
+            if (Number.isFinite(parsed)) hourlyRate = parsed;
+          }
           setStudent({
-            id: parseInt(studentId),
-            name: studentData.firstName && studentData.lastName 
-              ? `${studentData.firstName} ${studentData.lastName}`
-              : studentData.name || 'Student',
-            hourlyRate: studentData.hourlyRate || studentData.hourlyRateRange 
-              ? parseFloat((studentData.hourlyRateRange || '').replace(/[^0-9.]/g, '').split('–')[0]) || studentData.hourlyRate || 15
-              : 15,
+            id: studentData._id != null ? String(studentData._id) : String(studentId),
+            name,
+            hourlyRate: hourlyRate != null && Number.isFinite(Number(hourlyRate)) ? Number(hourlyRate) : null,
             rating: studentData.rating || null,
           });
         } else {
