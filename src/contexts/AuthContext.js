@@ -96,6 +96,13 @@ const apiRequest = async (url, options = {}, retries = 2) => {
   }
 };
 
+/** Align API user payloads into a consistent shape (incl. `id`). */
+const normalizeUserFromApi = (u) => {
+  if (!u) return null;
+  const id = u.id != null ? u.id : u._id;
+  return { ...u, id };
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -111,7 +118,7 @@ export const AuthProvider = ({ children }) => {
         // Verify auth in background (non-blocking) with timeout
         try {
           const data = await apiRequest('/auth/verify');
-          setUser(data.user);
+          setUser(normalizeUserFromApi(data.user));
         } catch (error) {
           console.error('Auth verification failed:', error);
           // Only remove token on clear auth errors, not network errors
@@ -133,8 +140,9 @@ export const AuthProvider = ({ children }) => {
       });
 
       safeLocalStorage.setItem('token', data.token);
-      setUser(data.user);
-      return { success: true, user: data.user };
+      const normalized = normalizeUserFromApi(data.user);
+      setUser(normalized);
+      return { success: true, user: normalized };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -148,7 +156,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       safeLocalStorage.setItem('token', data.token);
-      setUser(data.user);
+      setUser(normalizeUserFromApi(data.user));
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -167,8 +175,19 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(profileData),
       });
 
-      setUser(data.user);
+      setUser(normalizeUserFromApi(data.user));
       return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const data = await apiRequest('/auth/me');
+      const next = normalizeUserFromApi(data.user);
+      setUser(next);
+      return { success: true, user: next };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -268,6 +287,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUnavailableDates = async (dates) => {
+    try {
+      const data = await apiRequest('/users/unavailable-dates', {
+        method: 'PUT',
+        body: JSON.stringify({ dates }),
+      });
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const addCertification = async (certification) => {
     try {
       const data = await apiRequest('/users/certifications', {
@@ -288,6 +320,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
+    refreshUser,
     getStudents,
     getStudentProfile,
     createBooking,
@@ -296,6 +329,7 @@ export const AuthProvider = ({ children }) => {
     updateBookingStatus,
     addReview,
     updateAvailability,
+    updateUnavailableDates,
     addCertification,
   };
 

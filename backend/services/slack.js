@@ -14,6 +14,59 @@ if (slackToken) {
 
 const isSlackConfigured = () => !!slackClient;
 
+/** Slack member ID to DM when a student/parent account needs admin approval. */
+const ADMIN_APPROVAL_SLACK_USER_ID =
+  process.env.SLACK_ADMIN_NOTIFY_USER_ID || 'U0ANZDQ6K89';
+
+/**
+ * Notify the site administrator that a new student or parent account is awaiting approval.
+ */
+const notifyAdminPendingUserApproval = async (userDoc) => {
+  if (!slackClient) {
+    console.warn('Slack not configured; skipping admin approval notification.');
+    return;
+  }
+
+  const adminRef =
+    process.env.SLACK_ADMIN_REFERENCE_EMAIL || 'helbybest@gmail.com';
+
+  let channel = ADMIN_APPROVAL_SLACK_USER_ID;
+  try {
+    const opened = await slackClient.conversations.open({
+      users: ADMIN_APPROVAL_SLACK_USER_ID,
+    });
+    if (opened.ok && opened.channel && opened.channel.id) {
+      channel = opened.channel.id;
+    }
+  } catch (error) {
+    console.error('Slack conversations.open (admin notify) failed:', error.message);
+  }
+
+  const type = userDoc.userType || 'user';
+  const name = `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || 'Unknown';
+  const text = [
+    '🔐 *Account pending administrator approval*',
+    '',
+    `A new *${type}* registered and requires verification before full access.`,
+    '',
+    `*Name:* ${name}`,
+    `*Email:* ${userDoc.email || 'N/A'}`,
+    `*Admin contact:* ${adminRef}`,
+    `*User ID:* ${userDoc._id}`,
+    '',
+    'Please review and approve in the admin panel when due diligence is complete.',
+  ].join('\n');
+
+  try {
+    await slackClient.chat.postMessage({
+      channel,
+      text,
+    });
+  } catch (error) {
+    console.error('Error sending Slack admin approval message:', error);
+  }
+};
+
 /**
  * Post a message to a Slack user (DM) or channel.
  * If a student has a slackUserId, we DM them directly.
@@ -108,5 +161,6 @@ module.exports = {
   isSlackConfigured,
   notifyBookingCreated,
   sendBookingMessageToStudent,
+  notifyAdminPendingUserApproval,
 };
 
