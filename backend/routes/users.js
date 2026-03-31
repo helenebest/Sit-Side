@@ -164,6 +164,42 @@ router.put('/availability', auth, async (req, res) => {
   }
 });
 
+// Update specific unavailable dates (students only)
+router.put('/unavailable-dates', auth, async (req, res) => {
+  try {
+    if (req.user.userType !== 'student') {
+      return res.status(403).json({ error: 'Only students can update unavailable dates' });
+    }
+
+    const { dates } = req.body;
+
+    if (!Array.isArray(dates)) {
+      return res.status(400).json({ error: 'dates must be an array of ISO date strings' });
+    }
+
+    const parsedDates = dates
+      .map((d) => {
+        const date = new Date(d);
+        return Number.isNaN(date.getTime()) ? null : date;
+      })
+      .filter(Boolean);
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { unavailableDates: parsedDates },
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      unavailableDates: user.unavailableDates || [],
+      message: 'Unavailable dates updated successfully',
+    });
+  } catch (error) {
+    console.error('Update unavailable dates error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Add certification (students only)
 router.post('/certifications', auth, async (req, res) => {
   try {

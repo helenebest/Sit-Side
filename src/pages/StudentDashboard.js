@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
@@ -6,19 +6,19 @@ import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 
 const StudentDashboard = () => {
-  const { user, getMyBookings, sendBookingMessage } = useAuth();
+  const { user, getMyBookings, sendBookingMessage, updateUnavailableDates } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
   const [certificationDialogOpen, setCertificationDialogOpen] = useState(false);
   const [newCertification, setNewCertification] = useState('');
   const [profileData, setProfileData] = useState({
-    bio: 'Experienced babysitter with CPR certification. Love working with kids of all ages!',
-    hourlyRate: 15,
-    experience: '2 years',
-    certifications: ['CPR Certified', 'First Aid'],
-    location: 'Downtown Area',
-    availability: {
+    bio: user?.bio || 'Experienced babysitter with CPR certification. Love working with kids of all ages!',
+    hourlyRate: user?.hourlyRate || 15,
+    experience: user?.experience || '2 years',
+    certifications: user?.certifications?.length ? user.certifications : ['CPR Certified', 'First Aid'],
+    location: user?.location || 'Downtown Area',
+    availability: user?.availability || {
       monday: { morning: false, afternoon: true, evening: true },
       tuesday: { morning: false, afternoon: true, evening: true },
       wednesday: { morning: false, afternoon: true, evening: true },
@@ -41,6 +41,21 @@ const StudentDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState('');
+
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [savingUnavailableDates, setSavingUnavailableDates] = useState(false);
+  const unavailableDates = useMemo(
+    () =>
+      (user?.unavailableDates || []).map((d) => {
+        const date = new Date(d);
+        // Normalize to midnight for comparisons
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      }),
+    [user]
+  );
 
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [selectedBookingForMessage, setSelectedBookingForMessage] = useState(null);
@@ -136,6 +151,78 @@ const StudentDashboard = () => {
         },
       },
     }));
+  };
+
+  const startOfMonth = useMemo(() => {
+    return new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  }, [calendarMonth]);
+
+  const endOfMonth = useMemo(() => {
+    return new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+  }, [calendarMonth]);
+
+  const calendarDays = useMemo(() => {
+    const days = [];
+    const firstDayIndex = startOfMonth.getDay(); // 0 (Sun) - 6 (Sat)
+    const daysInMonth = endOfMonth.getDate();
+
+    for (let i = 0; i < firstDayIndex; i += 1) {
+      days.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d += 1) {
+      days.push(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), d));
+    }
+    return days;
+  }, [calendarMonth, startOfMonth, endOfMonth]);
+
+  const bookingsByDate = useMemo(() => {
+    const map = new Map();
+    bookings.forEach((booking) => {
+      if (!booking.date) return;
+      const date = new Date(booking.date);
+      const key = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(booking);
+    });
+    return map;
+  }, [bookings]);
+
+  const isDateUnavailable = (date) => {
+    const key = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    return unavailableDates.includes(key);
+  };
+
+  const handleToggleUnavailableDate = async (date) => {
+    const today = new Date();
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const normalizedClicked = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+    if (normalizedClicked < normalizedToday) {
+      return;
+    }
+
+    if (!user) return;
+
+    const currentSet = new Set(unavailableDates);
+    if (currentSet.has(normalizedClicked)) {
+      currentSet.delete(normalizedClicked);
+    } else {
+      currentSet.add(normalizedClicked);
+    }
+
+    const isoDates = Array.from(currentSet).map((ts) => {
+      const d = new Date(ts);
+      return d.toISOString();
+    });
+
+    setSavingUnavailableDates(true);
+    try {
+      await updateUnavailableDates(isoDates);
+    } finally {
+      setSavingUnavailableDates(false);
+    }
   };
 
   const handleCertificationAdd = () => {
@@ -438,13 +525,18 @@ const StudentDashboard = () => {
           {/* Availability Tab */}
           {activeTab === 1 && (
             <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-neutral-dark">Your Availability</h3>
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6">
+                <div>
+                  <h3 className="text-xl font-semibold text-neutral-dark">Weekly Availability</h3>
+                  <p className="text-sm text-neutral-light mt-1">
+                    Use this to set your general weekly pattern (mornings / afternoons / evenings).
+                  </p>
+                </div>
                 <PrimaryButton onClick={() => setAvailabilityDialogOpen(true)}>
                   ➕ Add Time Slot
                 </PrimaryButton>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                 {Object.entries(profileData.availability).map(([day, slots]) => (
                   <Card key={day} className="p-4">
                     <h4 className="font-semibold text-neutral-dark mb-3 capitalize">{day}</h4>
@@ -452,7 +544,7 @@ const StudentDashboard = () => {
                       <div key={timeSlot} className="flex items-center mb-2">
                         <input
                           type="checkbox"
-                          checked={available}
+                          checked={!!available}
                           onChange={() => handleAvailabilityToggle(day, timeSlot)}
                           className="mr-2"
                         />
@@ -461,6 +553,147 @@ const StudentDashboard = () => {
                     ))}
                   </Card>
                 ))}
+              </div>
+
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-neutral-dark">Calendar</h3>
+                    <p className="text-sm text-neutral-light">
+                      Tap on a future date to block or unblock it if you&apos;re unavailable. Bookings are shown on their dates.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <OutlineButton
+                      onClick={() =>
+                        setCalendarMonth(
+                          (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                        )
+                      }
+                    >
+                      ← Previous
+                    </OutlineButton>
+                    <span className="text-sm font-medium text-neutral-dark">
+                      {calendarMonth.toLocaleString(undefined, {
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    <OutlineButton
+                      onClick={() =>
+                        setCalendarMonth(
+                          (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                        )
+                      }
+                    >
+                      Next →
+                    </OutlineButton>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-2 text-xs font-medium text-neutral-light mb-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                    <div key={d} className="text-center">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {calendarDays.map((date, index) => {
+                    if (!date) {
+                      return <div key={`empty-${index}`} />;
+                    }
+
+                    const today = new Date();
+                    const isToday =
+                      date.getFullYear() === today.getFullYear() &&
+                      date.getMonth() === today.getMonth() &&
+                      date.getDate() === today.getDate();
+
+                    const normalizedKey = new Date(
+                      date.getFullYear(),
+                      date.getMonth(),
+                      date.getDate()
+                    ).getTime();
+                    const dateBookings = bookingsByDate.get(normalizedKey) || [];
+                    const hasBookings = dateBookings.length > 0;
+                    const unavailable = isDateUnavailable(date);
+
+                    const isPast =
+                      normalizedKey <
+                      new Date(
+                        today.getFullYear(),
+                        today.getMonth(),
+                        today.getDate()
+                      ).getTime();
+
+                    let bg = 'bg-white';
+                    if (unavailable) bg = 'bg-red-50';
+                    if (hasBookings) bg = 'bg-blue-50';
+                    if (unavailable && hasBookings) bg = 'bg-purple-50';
+
+                    return (
+                      <button
+                        key={date.toISOString()}
+                        type="button"
+                        disabled={isPast || savingUnavailableDates}
+                        onClick={() => handleToggleUnavailableDate(date)}
+                        className={`min-h-[72px] rounded-xl border text-left p-1 text-xs ${
+                          bg
+                        } ${
+                          isPast
+                            ? 'border-gray-100 text-neutral-light cursor-default'
+                            : 'border-gray-200 hover:border-primary cursor-pointer'
+                        } ${isToday ? 'ring-2 ring-primary' : ''}`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-neutral-dark text-xs">
+                            {date.getDate()}
+                          </span>
+                          {unavailable && (
+                            <span className="text-[10px] text-red-600 font-medium">
+                              Unavailable
+                            </span>
+                          )}
+                        </div>
+                        {hasBookings && (
+                          <div className="space-y-0.5">
+                            {dateBookings.slice(0, 2).map((b) => (
+                              <div
+                                key={b._id}
+                                className="rounded bg-blue-100 text-[10px] px-1 py-0.5 text-blue-800 truncate"
+                              >
+                                {b.startTime}–{b.endTime}{' '}
+                                {b.parent
+                                  ? `${b.parent.firstName || ''}`.trim()
+                                  : ''}
+                              </div>
+                            ))}
+                            {dateBookings.length > 2 && (
+                              <div className="text-[10px] text-neutral-light">
+                                +{dateBookings.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-4 text-xs text-neutral-light">
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-blue-50 border border-blue-100" />
+                    <span>Has bookings</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-100" />
+                    <span>Blocked (unavailable)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-purple-50 border border-purple-100" />
+                    <span>Blocked and booked</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
