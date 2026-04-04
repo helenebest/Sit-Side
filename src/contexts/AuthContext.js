@@ -235,6 +235,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const getStudentBookings = async (studentId, query = {}) => {
+    try {
+      const queryParams = new URLSearchParams(query);
+      const qs = queryParams.toString();
+      const url = qs
+        ? `/bookings/student/${studentId}?${qs}`
+        : `/bookings/student/${studentId}`;
+      const data = await apiRequest(url);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const sendBookingMessage = async (bookingId, message) => {
     try {
       const data = await apiRequest(`/bookings/${bookingId}/message`, {
@@ -325,6 +339,7 @@ export const AuthProvider = ({ children }) => {
     getStudentProfile,
     createBooking,
     getMyBookings,
+    getStudentBookings,
     sendBookingMessage,
     updateBookingStatus,
     addReview,
