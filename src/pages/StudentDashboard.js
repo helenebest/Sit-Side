@@ -3,6 +3,7 @@ import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
+import MonthCalendarGrid from '../components/MonthCalendarGrid';
 import { useAuth } from '../contexts/AuthContext';
 
 const StudentDashboard = () => {
@@ -152,42 +153,6 @@ const StudentDashboard = () => {
       },
     }));
   };
-
-  const startOfMonth = useMemo(() => {
-    return new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-  }, [calendarMonth]);
-
-  const endOfMonth = useMemo(() => {
-    return new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
-  }, [calendarMonth]);
-
-  const calendarDays = useMemo(() => {
-    const days = [];
-    const firstDayIndex = startOfMonth.getDay(); // 0 (Sun) - 6 (Sat)
-    const daysInMonth = endOfMonth.getDate();
-
-    for (let i = 0; i < firstDayIndex; i += 1) {
-      days.push(null);
-    }
-    for (let d = 1; d <= daysInMonth; d += 1) {
-      days.push(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), d));
-    }
-    return days;
-  }, [calendarMonth, startOfMonth, endOfMonth]);
-
-  const bookingsByDate = useMemo(() => {
-    const map = new Map();
-    bookings.forEach((booking) => {
-      if (!booking.date) return;
-      const date = new Date(booking.date);
-      const key = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-      if (!map.has(key)) {
-        map.set(key, []);
-      }
-      map.get(key).push(booking);
-    });
-    return map;
-  }, [bookings]);
 
   const isDateUnavailable = (date) => {
     const key = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
@@ -556,69 +521,57 @@ const StudentDashboard = () => {
               </div>
 
               <div className="border-t border-gray-200 pt-6">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-neutral-dark">Calendar</h3>
-                    <p className="text-sm text-neutral-light">
-                      Tap on a future date to block or unblock it if you&apos;re unavailable. Bookings are shown on their dates.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <OutlineButton
-                      onClick={() =>
-                        setCalendarMonth(
-                          (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-                        )
-                      }
-                    >
-                      ← Previous
-                    </OutlineButton>
-                    <span className="text-sm font-medium text-neutral-dark">
-                      {calendarMonth.toLocaleString(undefined, {
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </span>
-                    <OutlineButton
-                      onClick={() =>
-                        setCalendarMonth(
-                          (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-                        )
-                      }
-                    >
-                      Next →
-                    </OutlineButton>
-                  </div>
+                <div className="mb-4">
+                  <h3 className="text-xl font-semibold text-neutral-dark">Calendar</h3>
+                  <p className="text-sm text-neutral-light mt-1">
+                    Tap a future day to block or unblock. Bookings show as colored bars across days (including overnight sits). Gray numbers are outside this month.
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-7 gap-2 text-xs font-medium text-neutral-light mb-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                    <div key={d} className="text-center">
-                      {d}
+                <MonthCalendarGrid
+                  monthDate={calendarMonth}
+                  bookings={bookings}
+                  toolbar={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <OutlineButton
+                        onClick={() =>
+                          setCalendarMonth(
+                            (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                          )
+                        }
+                      >
+                        ← Previous
+                      </OutlineButton>
+                      <span className="text-sm font-semibold text-neutral-dark">
+                        {calendarMonth.toLocaleString(undefined, {
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </span>
+                      <OutlineButton
+                        onClick={() =>
+                          setCalendarMonth(
+                            (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                          )
+                        }
+                      >
+                        Next →
+                      </OutlineButton>
                     </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-2">
-                  {calendarDays.map((date, index) => {
-                    if (!date) {
-                      return <div key={`empty-${index}`} />;
-                    }
-
+                  }
+                  renderDay={(cell) => {
+                    const { date, inCurrentMonth } = cell;
                     const today = new Date();
                     const isToday =
                       date.getFullYear() === today.getFullYear() &&
                       date.getMonth() === today.getMonth() &&
                       date.getDate() === today.getDate();
-
                     const normalizedKey = new Date(
                       date.getFullYear(),
                       date.getMonth(),
                       date.getDate()
                     ).getTime();
-                    const dateBookings = bookingsByDate.get(normalizedKey) || [];
-                    const hasBookings = dateBookings.length > 0;
                     const unavailable = isDateUnavailable(date);
-
                     const isPast =
                       normalizedKey <
                       new Date(
@@ -626,72 +579,68 @@ const StudentDashboard = () => {
                         today.getMonth(),
                         today.getDate()
                       ).getTime();
+                    const isSunday = date.getDay() === 0;
 
-                    let bg = 'bg-white';
-                    if (unavailable) bg = 'bg-red-50';
-                    if (hasBookings) bg = 'bg-blue-50';
-                    if (unavailable && hasBookings) bg = 'bg-purple-50';
+                    if (!inCurrentMonth) {
+                      return (
+                        <div className="flex h-full flex-col items-end">
+                          <span
+                            className={`text-xs font-medium tabular-nums ${
+                              isSunday ? 'text-red-300' : 'text-neutral-400'
+                            }`}
+                          >
+                            {date.getDate()}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    const cellBg = unavailable
+                      ? 'bg-red-50/75 backdrop-blur-[1px]'
+                      : 'bg-white/40 backdrop-blur-[1px] hover:bg-sky-50/50';
 
                     return (
                       <button
-                        key={date.toISOString()}
                         type="button"
                         disabled={isPast || savingUnavailableDates}
                         onClick={() => handleToggleUnavailableDate(date)}
-                        className={`min-h-[72px] rounded-xl border text-left p-1 text-xs ${
-                          bg
-                        } ${
+                        className={`flex h-full min-h-[4.5rem] w-full flex-col rounded-none border-0 text-left p-0.5 text-xs transition-colors ${cellBg} ${
                           isPast
-                            ? 'border-gray-100 text-neutral-light cursor-default'
-                            : 'border-gray-200 hover:border-primary cursor-pointer'
-                        } ${isToday ? 'ring-2 ring-primary' : ''}`}
+                            ? 'cursor-default opacity-70'
+                            : 'cursor-pointer'
+                        } ${isToday ? 'ring-1 ring-inset ring-primary' : ''}`}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-neutral-dark text-xs">
+                        <div className="mb-0.5 flex shrink-0 items-start justify-between gap-0.5">
+                          <span
+                            className={`flex h-7 min-w-[1.75rem] items-center justify-center text-xs font-semibold tabular-nums ${
+                              isToday
+                                ? 'rounded-full bg-primary px-1.5 text-white shadow-sm'
+                                : isSunday
+                                  ? 'text-red-600'
+                                  : 'text-neutral-dark'
+                            }`}
+                          >
                             {date.getDate()}
                           </span>
-                          {unavailable && (
-                            <span className="text-[10px] text-red-600 font-medium">
-                              Unavailable
+                          {unavailable ? (
+                            <span className="text-[9px] font-medium uppercase tracking-tight text-red-600">
+                              Off
                             </span>
-                          )}
+                          ) : null}
                         </div>
-                        {hasBookings && (
-                          <div className="space-y-0.5">
-                            {dateBookings.slice(0, 2).map((b) => (
-                              <div
-                                key={b._id}
-                                className="rounded bg-blue-100 text-[10px] px-1 py-0.5 text-blue-800 truncate"
-                              >
-                                {b.startTime}–{b.endTime}{' '}
-                                {b.parent
-                                  ? `${b.parent.firstName || ''}`.trim()
-                                  : ''}
-                              </div>
-                            ))}
-                            {dateBookings.length > 2 && (
-                              <div className="text-[10px] text-neutral-light">
-                                +{dateBookings.length - 2} more
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </button>
                     );
-                  })}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 mt-4 text-xs text-neutral-light">
-                  <div className="flex items-center gap-1">
-                    <span className="inline-block w-3 h-3 rounded bg-blue-50 border border-blue-100" />
-                    <span>Has bookings</span>
+                  }}
+                />
+
+                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-neutral-light">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-6 rounded-sm bg-primary" />
+                    <span>Bookings (colors vary)</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-100" />
-                    <span>Blocked (unavailable)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="inline-block w-3 h-3 rounded bg-purple-50 border border-purple-100" />
-                    <span>Blocked and booked</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 border border-red-200 bg-red-50" />
+                    <span>Blocked day</span>
                   </div>
                 </div>
               </div>
