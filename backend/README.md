@@ -137,9 +137,7 @@ curl -X GET http://localhost:5000/api/users/students \
 ```env
 NODE_ENV=production
 PORT=5000
-# ⚠️ IMPORTANT: Replace with YOUR actual MongoDB Atlas connection string
-# Get this from MongoDB Atlas Dashboard → Connect → Connect your application
-MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/sitside?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/sitside
 JWT_SECRET=your_production_jwt_secret_here
 CORS_ORIGIN=https://your-frontend-domain.com
 ```

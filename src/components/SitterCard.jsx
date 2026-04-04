@@ -16,14 +16,9 @@ const SitterCard = ({ id, name, grade, school, rate, rating, tags = [] }) => {
       <div className="flex-1">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-dark">{name}</h3>
-          <span className="text-sm text-neutral-light">
-            {typeof rate === 'number' && Number.isFinite(rate) ? `$${rate}/hr` : 'See profile'}
-          </span>
+          <span className="text-sm text-neutral-light">${rate}/hr</span>
         </div>
-        <p className="text-sm text-neutral-light">
-          {[grade != null ? `Grade ${grade}` : null, school || null].filter(Boolean).join(' • ') ||
-            'Windward-area sitter'}
-        </p>
+        <p className="text-sm text-neutral-light">Grade {grade} • {school}</p>
         <div className="mt-2 flex items-center gap-2">
           {rating ? (
             <span className="text-sm">⭐ {rating}</span>

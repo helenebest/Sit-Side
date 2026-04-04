@@ -1,60 +1,53 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import SitterCard from '../components/SitterCard';
-import { useAuth } from '../contexts/AuthContext';
-import {
-  normalizeStudentForListing,
-  studentsFromApiResponse,
-} from '../utils/studentDisplay';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { user, getStudents } = useAuth();
-  const [featuredSitters, setFeaturedSitters] = useState([]);
-  const [featuredLoading, setFeaturedLoading] = useState(false);
-
-  useEffect(() => {
-    if (user?.userType !== 'parent') {
-      setFeaturedSitters([]);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      setFeaturedLoading(true);
-      try {
-        const result = await getStudents({ limit: 4 });
-        if (!cancelled && result.success) {
-          const list = studentsFromApiResponse(result.data)
-            .map((s) => normalizeStudentForListing(s))
-            .filter(Boolean)
-            .map((s) => ({
-              id: s.id,
-              name: s.name,
-              grade: s.grade,
-              school: s.school || '',
-              rate:
-                typeof s.hourlyRate === 'number' && Number.isFinite(s.hourlyRate)
-                  ? s.hourlyRate
-                  : null,
-              rating: s.rating > 0 ? s.rating : null,
-              tags: (s.certifications || []).slice(0, 3),
-            }));
-          setFeaturedSitters(list);
-        }
-      } finally {
-        if (!cancelled) setFeaturedLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user, getStudents]);
+  
+  // Core students featured on homepage (same as in ParentDashboard)
+  const sitters = [
+    {
+      id: 1001,
+      name: 'Helen Best',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 18, // Extract from $18 – $25 / hour
+      rating: null,
+      tags: ['California Licensed Driver']
+    },
+    {
+      id: 1002,
+      name: 'Ava Parker',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 20,
+      rating: null,
+      tags: ['California Licensed Driver', 'Youth Sports Coach']
+    },
+    {
+      id: 1003,
+      name: 'Lilah Rubinson',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 20,
+      rating: null,
+      tags: ['California Licensed Driver']
+    },
+    {
+      id: 1004,
+      name: 'Lila Owens',
+      grade: 11,
+      school: 'Windward High School',
+      rate: 20,
+      rating: null,
+      tags: ['California Licensed Driver']
+    },
+  ];
 
   return (
     <div>
@@ -122,57 +115,31 @@ const HomePage = () => {
             <button 
               type="button" 
               className="text-primary hover:underline"
-              onClick={() => navigate(user?.userType === 'parent' ? '/parent' : '/signup?type=parent')}
+              onClick={() => navigate('/signup?type=parent')}
             >
               See all
             </button>
           </div>
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {user?.userType !== 'parent' && (
-              <Card className="p-6 sm:col-span-2 lg:col-span-4">
-                <p className="text-neutral-dark font-medium">Browse verified sitters</p>
-                <p className="mt-2 text-sm text-neutral-light">
-                  Create a parent account to see real student profiles from your community—no placeholder listings.
-                </p>
-                <div className="mt-4">
-                  <PrimaryButton onClick={() => navigate('/signup?type=parent')}>
-                    Sign up as a parent
-                  </PrimaryButton>
-                </div>
-              </Card>
-            )}
-            {user?.userType === 'parent' && featuredLoading && (
-              <p className="text-sm text-neutral-light sm:col-span-2 lg:col-span-4">Loading sitters…</p>
-            )}
-            {user?.userType === 'parent' && !featuredLoading && featuredSitters.length === 0 && (
-              <Card className="p-6 sm:col-span-2 lg:col-span-4">
-                <p className="text-neutral-light">
-                  No verified sitters to show yet. Open Find Babysitters for the full directory.
-                </p>
-                <div className="mt-4">
-                  <OutlineButton onClick={() => navigate('/parent')}>Go to Find Babysitters</OutlineButton>
-                </div>
-              </Card>
-            )}
-            {user?.userType === 'parent' &&
-              !featuredLoading &&
-              featuredSitters.map((s) => (
-                <SitterCard key={s.id} {...s} />
-              ))}
+            {sitters.map(s => (
+              <SitterCard key={s.id} {...s} />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Community */}
+      {/* Testimonials */}
       <section id="testimonials" className="bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
-          <h2 className="text-3xl font-bold text-neutral-dark text-center">Built for real families and sitters</h2>
-          <div className="mt-10 max-w-2xl mx-auto">
-            <Card className="p-6 text-center">
-              <p className="text-neutral-light">
-                We focus on verified student profiles and clear booking tools so parents and sitters can connect with
-                confidence—without filler listings or demo names on the directory.
-              </p>
+          <h2 className="text-3xl font-bold text-neutral-dark text-center">What Families Say</h2>
+          <div className="mt-10 grid md:grid-cols-2 gap-6">
+            <Card className="p-6">
+              <p className="italic text-neutral-dark">“Sit Side made it so easy to find someone trustworthy for a last-minute night out.”</p>
+              <div className="mt-4 text-sm text-neutral-light">— Sarah M.</div>
+            </Card>
+            <Card className="p-6">
+              <p className="italic text-neutral-dark">“As a student, I love the flexibility and the families I’ve met.”</p>
+              <div className="mt-4 text-sm text-neutral-light">— Alex T.</div>
             </Card>
           </div>
         </div>

@@ -153,4 +153,3 @@ const MessagingPage = () => {
 };
 
 export default MessagingPage;
-
