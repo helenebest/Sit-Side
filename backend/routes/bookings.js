@@ -149,6 +149,38 @@ router.get('/my-bookings', auth, requireStudentOrParent, async (req, res) => {
   }
 });
 
+// Get bookings for a specific student (for calendar/availability views)
+router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { from, to } = req.query;
+
+    const filter = { student: studentId };
+
+    if (from || to) {
+      filter.date = {};
+      if (from) {
+        filter.date.$gte = new Date(from);
+      }
+      if (to) {
+        filter.date.$lte = new Date(to);
+      }
+    }
+
+    const bookings = await Booking.find(filter)
+      .populate([
+        { path: 'student', select: 'firstName lastName' },
+        { path: 'parent', select: 'firstName lastName' },
+      ])
+      .sort({ date: 1, startTime: 1 });
+
+    res.json({ bookings });
+  } catch (error) {
+    console.error('Get student bookings error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get single booking
 router.get('/:id', auth, requireStudentOrParent, async (req, res) => {
   try {

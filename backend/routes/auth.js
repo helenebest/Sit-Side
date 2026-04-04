@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
+const { notifyAdminPendingUserApproval } = require('../services/slack');
 const router = express.Router();
 
 // Register new user
@@ -92,9 +93,23 @@ router.post('/register', async (req, res) => {
       userData.emergencyContact = emergencyContact?.trim();
     }
 
+    if (userType === 'admin') {
+      userData.isVerified = true;
+    }
+
     // Create user
     const user = new User(userData);
     await user.save();
+
+    if ((userType === 'student' || userType === 'parent') && !user.isVerified) {
+      try {
+        await notifyAdminPendingUserApproval(user);
+        user.adminApprovalSlackNotifiedAt = new Date();
+        await user.save();
+      } catch (slackErr) {
+        console.error('Admin approval Slack notification failed:', slackErr);
+      }
+    }
 
     // Generate JWT token
     const token = jwt.sign(
@@ -225,6 +240,7 @@ router.get('/me', auth, async (req, res) => {
         certifications: user.certifications,
         location: user.location,
         availability: user.availability,
+        unavailableDates: user.unavailableDates,
         emergencyContact: user.emergencyContact,
         profileImage: user.profileImage,
         rating: user.rating,
@@ -258,7 +274,7 @@ router.put('/profile', auth, async (req, res) => {
       }
     });
 
-    const user = await User.findByIdAndUpdate(
+    let user = await User.findByIdAndUpdate(
       req.user._id,
       updates,
       { new: true, runValidators: true }
@@ -266,6 +282,23 @@ router.put('/profile', auth, async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (
+      (user.userType === 'student' || user.userType === 'parent') &&
+      !user.isVerified &&
+      !user.adminApprovalSlackNotifiedAt
+    ) {
+      try {
+        await notifyAdminPendingUserApproval(user);
+        user = await User.findByIdAndUpdate(
+          req.user._id,
+          { adminApprovalSlackNotifiedAt: new Date() },
+          { new: true, runValidators: true }
+        );
+      } catch (slackErr) {
+        console.error('Admin approval Slack notification failed:', slackErr);
+      }
     }
 
     res.json({
@@ -284,6 +317,7 @@ router.put('/profile', auth, async (req, res) => {
         certifications: user.certifications,
         location: user.location,
         availability: user.availability,
+        unavailableDates: user.unavailableDates,
         emergencyContact: user.emergencyContact,
         profileImage: user.profileImage,
         rating: user.rating,
@@ -308,15 +342,21 @@ router.put('/profile', auth, async (req, res) => {
 
 // Verify token (for frontend auth check)
 router.get('/verify', auth, (req, res) => {
-  res.json({ 
-    valid: true, 
+  res.json({
+    valid: true,
     user: {
       id: req.user._id,
       email: req.user.email,
       firstName: req.user.firstName,
       lastName: req.user.lastName,
-      userType: req.user.userType
-    }
+      userType: req.user.userType,
+      grade: req.user.grade,
+      school: req.user.school,
+      isVerified: req.user.isVerified,
+      rating: req.user.rating,
+      reviewCount: req.user.reviewCount,
+      profileImage: req.user.profileImage,
+    },
   });
 });
 

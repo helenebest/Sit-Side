@@ -26,6 +26,8 @@ const userSchema = new mongoose.Schema({
     saturday: { morning: Boolean, afternoon: Boolean, evening: Boolean },
     sunday: { morning: Boolean, afternoon: Boolean, evening: Boolean }
   },
+  // Specific dates a student is unavailable (overrides weekly availability)
+  unavailableDates: [{ type: Date }],
   
   // Parent-specific fields
   emergencyContact: { type: String, trim: true },
@@ -37,6 +39,8 @@ const userSchema = new mongoose.Schema({
   rating: { type: Number, default: 0, min: 0, max: 5 },
   reviewCount: { type: Number, default: 0 },
   isVerified: { type: Boolean, default: false },
+  /** Set when admin was notified on Slack (avoids duplicate profile-update pings). */
+  adminApprovalSlackNotifiedAt: { type: Date, default: null },
   isActive: { type: Boolean, default: true },
   backgroundCheckStatus: { 
     type: String, 

@@ -6,74 +6,6 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 
-// Core students data - same as in ParentDashboard
-const CORE_STUDENTS = [
-  {
-    id: 1001,
-    name: 'Helen Best',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$18 – $25 / hour',
-    location: 'Venice, Los Angeles',
-    locationRange: 'Westside of LA and Santa Monica',
-    bio: 'Experienced babysitter with retail experience. Math tutoring also available. Love working with kids of all ages!',
-    certifications: ['California Licensed Driver'],
-    availability: 'Saturdays, evenings after 5:30 PM',
-    experience: '2 years',
-    image: null,
-  },
-  {
-    id: 1002,
-    name: 'Ava Parker',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$20 / hour',
-    location: 'Ladera Heights',
-    locationRange: 'Los Angeles and Santa Monica',
-    bio: 'Responsible and caring babysitter, coach (softball and volleyball), and tutor. Great with toddlers and school-age children.',
-    certifications: ['California Licensed Driver', 'Youth Sports Coach'],
-    availability: 'Afternoons, weekends',
-    experience: '2 years',
-    image: null,
-  },
-  {
-    id: 1003,
-    name: 'Lilah Rubinson',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$20 / hour',
-    location: 'Hancock Park / Mid Wilshire',
-    locationRange: 'Greater Los Angeles Area',
-    bio: 'Very experienced babysitter for kids of all ages.',
-    certifications: ['California Licensed Driver'],
-    availability: 'Monday–Friday 5:30-10:30 PM',
-    experience: '1 year',
-    image: null,
-  },
-  {
-    id: 1004,
-    name: 'Lila Owens',
-    school: 'Windward High School',
-    grade: 11,
-    rating: null,
-    reviewCount: 0,
-    hourlyRateRange: '$20 / hour',
-    location: 'Westwood',
-    locationRange: 'Santa Monica, Brentwood, Westwood, Marina Del Rey and Pacific Palisades',
-    bio: 'A responsible and caring babysitter with experience caring for children ages 3+, ensuring their safety and keeping them engaged through fun and educational activities',
-    certifications: ['California Licensed Driver'],
-    availability: 'Monday-Friday 6:00-10:30 PM, Sundays 8:00 AM-10:00 PM',
-    experience: '2 years',
-    image: null,
-  },
-];
-
 const StudentProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -82,34 +14,40 @@ const StudentProfile = () => {
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   useEffect(() => {
     const loadStudent = async () => {
       setLoading(true);
       setError(null);
-      
-      const studentId = parseInt(id);
-      
-      // First check if it's a core student
-      const coreStudent = CORE_STUDENTS.find(s => s.id === studentId);
-      if (coreStudent) {
-        // Convert core student format to profile format
-        setStudent({
-          ...coreStudent,
-          hourlyRate: coreStudent.hourlyRateRange ? parseFloat(coreStudent.hourlyRateRange.replace(/[^0-9.]/g, '').split('–')[0]) : null,
-          phone: null,
-          email: null,
-          availability: typeof coreStudent.availability === 'string' ? coreStudent.availability : coreStudent.availability,
-        });
+
+      if (!id) {
+        setError('Student not found');
         setLoading(false);
         return;
       }
 
-      // Otherwise, fetch from API
       try {
-        const result = await getStudentProfile(studentId);
-        if (result.success && result.data) {
-          setStudent(result.data);
+        const result = await getStudentProfile(id);
+        const raw = result.data?.student ?? result.data;
+        if (result.success && raw) {
+          const name =
+            [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim() ||
+            raw.name ||
+            'Student';
+          const hourlyRateRange =
+            raw.hourlyRateRange ||
+            (typeof raw.hourlyRate === 'number' && Number.isFinite(raw.hourlyRate)
+              ? `$${raw.hourlyRate % 1 === 0 ? raw.hourlyRate : raw.hourlyRate.toFixed(2)} / hour`
+              : null);
+          setStudent({
+            ...raw,
+            name,
+            hourlyRateRange,
+          });
         } else {
           setError('Student not found');
         }
@@ -122,30 +60,6 @@ const StudentProfile = () => {
 
     loadStudent();
   }, [id, getStudentProfile]);
-
-  const reviews = [
-    {
-      id: 1,
-      parentName: 'Sarah Johnson',
-      rating: 5,
-      date: '2024-01-10',
-      comment: 'Alex was amazing with my two kids! They had so much fun and I felt completely comfortable leaving them in her care. Highly recommend!',
-    },
-    {
-      id: 2,
-      parentName: 'Mike Chen',
-      rating: 5,
-      date: '2024-01-05',
-      comment: 'Very responsible and punctual. My 3-year-old loved playing with Alex. Will definitely book again.',
-    },
-    {
-      id: 3,
-      parentName: 'Lisa Davis',
-      rating: 4,
-      date: '2023-12-28',
-      comment: 'Great babysitter! Very professional and the kids had a wonderful time.',
-    },
-  ];
 
   const handleBookNow = () => {
     setBookingDialogOpen(true);
@@ -194,6 +108,32 @@ const StudentProfile = () => {
     return 'New sitter';
   };
 
+  const startOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const endOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+
+  const calendarDays = [];
+  const firstDayIndex = startOfMonth.getDay();
+  const daysInMonth = endOfMonth.getDate();
+
+  for (let i = 0; i < firstDayIndex; i += 1) {
+    calendarDays.push(null);
+  }
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    calendarDays.push(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), d));
+  }
+
+  const unavailableDates = (student?.unavailableDates || []).map((d) => {
+    const date = new Date(d);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  });
+
+  const bookingsByDate = new Map();
+
+  const isDateUnavailable = (date) => {
+    const key = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    return unavailableDates.includes(key);
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -231,7 +171,7 @@ const StudentProfile = () => {
           <Card className="p-8">
             <div className="flex items-center mb-6">
               <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl mr-6">
-                {student.name.charAt(0)}
+                {(student.name || '?').charAt(0)}
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-neutral-dark">{student.name}</h1>
@@ -264,60 +204,188 @@ const StudentProfile = () => {
             <div className="border-t border-gray-200 pt-6">
               <h2 className="text-xl font-semibold text-neutral-dark mb-4">Certifications & Experience</h2>
               <div className="flex flex-wrap gap-2 mb-4">
-                {student.certifications.map((cert, index) => (
+                {(student.certifications || []).map((cert, index) => (
                   <Badge key={index} color="primary">{cert}</Badge>
                 ))}
               </div>
-              <p className="text-neutral-light">Experience: {student.experience}</p>
+              <p className="text-neutral-light">
+                Experience: {student.experience || 'Not specified'}
+              </p>
             </div>
 
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-xl font-semibold text-neutral-dark mb-4">Availability</h2>
-              {typeof availability === 'string' ? (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-neutral-dark">{availability}</p>
+            <div className="border-t border-gray-200 pt-6 space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-neutral-dark mb-4">Weekly Availability</h2>
+                {typeof availability === 'string' ? (
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-neutral-dark">{availability}</p>
+                  </div>
+                ) : availability && typeof availability === 'object' ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(availability).map(([day, slots]) => (
+                      <div key={day} className="bg-gray-50 rounded-xl p-4">
+                        <h4 className="font-semibold text-neutral-dark mb-2 capitalize">{day}</h4>
+                        <p className="text-sm text-neutral-light">{getAvailabilityText(day, slots)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-neutral-light">Availability not set</p>
+                )}
+              </div>
+
+              <div>
+                <h2 className="text-xl font-semibold text-neutral-dark mb-4">Calendar</h2>
+                <p className="text-sm text-neutral-light mb-3">
+                  View {student.name}&apos;s upcoming bookings and blocked days to help choose the best time.
+                </p>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-3">
+                  <div className="text-sm font-medium text-neutral-dark">
+                    {calendarMonth.toLocaleString(undefined, {
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <OutlineButton
+                      onClick={() =>
+                        setCalendarMonth(
+                          (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                        )
+                      }
+                    >
+                      ← Previous
+                    </OutlineButton>
+                    <OutlineButton
+                      onClick={() =>
+                        setCalendarMonth(
+                          (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                        )
+                      }
+                    >
+                      Next →
+                    </OutlineButton>
+                  </div>
                 </div>
-              ) : availability && typeof availability === 'object' ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.entries(availability).map(([day, slots]) => (
-                    <div key={day} className="bg-gray-50 rounded-xl p-4">
-                      <h4 className="font-semibold text-neutral-dark mb-2 capitalize">{day}</h4>
-                      <p className="text-sm text-neutral-light">{getAvailabilityText(day, slots)}</p>
+
+                <div className="grid grid-cols-7 gap-2 text-xs font-medium text-neutral-light mb-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                    <div key={d} className="text-center">
+                      {d}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-neutral-light">Availability not set</p>
-              )}
+                <div className="grid grid-cols-7 gap-2">
+                  {calendarDays.map((date, index) => {
+                    if (!date) {
+                      return <div key={`empty-${index}`} />;
+                    }
+
+                    const today = new Date();
+                    const isToday =
+                      date.getFullYear() === today.getFullYear() &&
+                      date.getMonth() === today.getMonth() &&
+                      date.getDate() === today.getDate();
+
+                    const normalizedKey = new Date(
+                      date.getFullYear(),
+                      date.getMonth(),
+                      date.getDate()
+                    ).getTime();
+                    const dateBookings = bookingsByDate.get(normalizedKey) || [];
+                    const hasBookings = dateBookings.length > 0;
+                    const unavailable = isDateUnavailable(date);
+
+                    let bg = 'bg-white';
+                    if (unavailable) bg = 'bg-red-50';
+                    if (hasBookings) bg = 'bg-blue-50';
+                    if (unavailable && hasBookings) bg = 'bg-purple-50';
+
+                    return (
+                      <div
+                        key={date.toISOString()}
+                        className={`min-h-[72px] rounded-xl border text-left p-1 text-xs ${bg} ${
+                          'border-gray-200'
+                        } ${isToday ? 'ring-2 ring-primary' : ''}`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-neutral-dark text-xs">
+                            {date.getDate()}
+                          </span>
+                          {unavailable && (
+                            <span className="text-[10px] text-red-600 font-medium">
+                              Unavailable
+                            </span>
+                          )}
+                        </div>
+                        {hasBookings && (
+                          <div className="space-y-0.5">
+                            {dateBookings.slice(0, 2).map((b) => (
+                              <div
+                                key={b._id}
+                                className="rounded bg-blue-100 text-[10px] px-1 py-0.5 text-blue-800 truncate"
+                              >
+                                {b.startTime}–{b.endTime}{' '}
+                                {b.parent
+                                  ? `${b.parent.firstName || ''}`.trim()
+                                  : ''}
+                              </div>
+                            ))}
+                            {dateBookings.length > 2 && (
+                              <div className="text-[10px] text-neutral-light">
+                                +{dateBookings.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-4 text-xs text-neutral-light">
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-blue-50 border border-blue-100" />
+                    <span>Has bookings</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-100" />
+                    <span>Blocked (unavailable)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-purple-50 border border-purple-100" />
+                    <span>Blocked and booked</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {student.reviewCount > 0 && (
+            {Array.isArray(student.reviews) && student.reviews.length > 0 && (
               <div className="border-t border-gray-200 pt-6">
                 <h2 className="text-xl font-semibold text-neutral-dark mb-4">Reviews</h2>
                 <div className="space-y-6">
-                  {reviews.length > 0 ? (
-                    reviews.map((review, index) => (
-                      <div key={review.id}>
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-semibold text-neutral-dark">{review.parentName}</h4>
-                          <div className="flex items-center">
-                            <div className="flex items-center mr-2">
-                              {[...Array(5)].map((_, i) => (
-                                <span key={i} className="text-yellow-400">
-                                  {i < review.rating ? '★' : '☆'}
-                                </span>
-                              ))}
-                            </div>
-                            <span className="text-sm text-neutral-light">{review.date}</span>
+                  {student.reviews.map((review, index) => (
+                    <div key={review._id || review.id || index}>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-neutral-dark">{review.parentName || 'Parent'}</h4>
+                        <div className="flex items-center">
+                          <div className="flex items-center mr-2">
+                            {[...Array(5)].map((_, i) => (
+                              <span key={i} className="text-yellow-400">
+                                {i < (Number(review.rating) || 0) ? '★' : '☆'}
+                              </span>
+                            ))}
                           </div>
+                          <span className="text-sm text-neutral-light">
+                            {review.date ? new Date(review.date).toLocaleDateString() : ''}
+                          </span>
                         </div>
-                        <p className="text-neutral-light">{review.comment}</p>
-                        {index < reviews.length - 1 && <div className="border-b border-gray-200 mt-4" />}
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-neutral-light">No reviews yet. Be the first to review!</p>
-                  )}
+                      <p className="text-neutral-light">{review.comment}</p>
+                      {index < student.reviews.length - 1 && (
+                        <div className="border-b border-gray-200 mt-4" />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
