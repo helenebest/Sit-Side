@@ -1,16 +1,6 @@
 import React, { useMemo } from 'react';
 import { buildMonthGrid, WEEKDAY_LABELS_SHORT } from '../utils/buildMonthGrid';
-import { computeBookingSpanSegments } from '../utils/bookingCalendarSpans';
-
-const ROW_TEMPLATE = 'repeat(6, minmax(5.75rem, auto))';
-const BAR_TOP_BASE_PX = 30;
-const BAR_LANE_STEP_PX = 22;
-
-/** Inline so layout survives stale CDN CSS or missing hand-rolled utilities. */
-const GRID_7_COL = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-};
+import { getBookingRange, themeClassForBooking } from '../utils/bookingCalendarSpans';
 
 /**
  * Traditional rectangular month calendar: header row + 6×7 grid with borders.
@@ -28,10 +18,52 @@ const MonthCalendarGrid = ({
     [monthDate]
   );
 
-  const spanSegments = useMemo(
-    () => computeBookingSpanSegments(bookings, cells),
-    [bookings, cells]
+  const weeks = useMemo(
+    () => Array.from({ length: 6 }, (_, rowIdx) => cells.slice(rowIdx * 7, rowIdx * 7 + 7)),
+    [cells]
   );
+
+  const bookingLabelsByDay = useMemo(() => {
+    const byDay = new Map();
+    if (!Array.isArray(bookings) || bookings.length === 0) {
+      return byDay;
+    }
+
+    for (const booking of bookings) {
+      if (!booking || booking.status === 'cancelled') continue;
+      const range = getBookingRange(booking);
+      if (!range) continue;
+
+      for (const cell of cells) {
+        const date = cell.date;
+        const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+        const dayEnd = new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate(),
+          23,
+          59,
+          59,
+          999
+        );
+        if (range.start > dayEnd || range.end < dayStart) continue;
+
+        const key = dayStart.getTime();
+        const labels = byDay.get(key) ?? [];
+        const parentName = booking.parent
+          ? `${booking.parent.firstName || ''} ${booking.parent.lastName || ''}`.trim()
+          : '';
+        labels.push({
+          key: `${String(booking._id ?? booking.id ?? key)}-${labels.length}`,
+          text: `${booking.startTime || ''}${parentName ? ` ${parentName}` : ''}`.trim() || 'Booking',
+          themeClass: themeClassForBooking(booking),
+        });
+        byDay.set(key, labels);
+      }
+    }
+
+    return byDay;
+  }, [bookings, cells]);
 
   return (
     <div
@@ -40,70 +72,67 @@ const MonthCalendarGrid = ({
     >
       {toolbar ? <div className="month-cal-toolbar">{toolbar}</div> : null}
 
-      <div className="month-cal-weekdays" style={GRID_7_COL}>
-        {WEEKDAY_LABELS_SHORT.map((label, i) => (
-          <div
-            key={label}
-            className={`month-cal-weekday ${i === 0 ? 'month-cal-weekday--sun' : ''}`}
-          >
-            {label}
-          </div>
-        ))}
-      </div>
-
-      <div
-        className="month-cal-body"
-        style={{ position: 'relative', width: '100%', minWidth: 0 }}
-      >
-        <div
-          className="month-cal-grid month-cal-grid--cells"
-          style={{ ...GRID_7_COL, gridTemplateRows: ROW_TEMPLATE }}
-        >
-          {cells.map((cell, index) => (
-            <div
-              key={`${cell.date.getTime()}-${index}`}
-              className="month-cal-cell"
-            >
-              {renderDay(cell, index)}
-            </div>
-          ))}
-        </div>
-
-        <div
-          className="month-cal-grid month-cal-grid--overlay"
-          style={{
-            ...GRID_7_COL,
-            gridTemplateRows: ROW_TEMPLATE,
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            pointerEvents: 'none',
-            zIndex: 1,
-          }}
-          aria-hidden
-        >
-          {spanSegments.map((seg) => (
-            <div
-              key={seg.key}
-              style={{
-                gridRow: seg.row + 1,
-                gridColumn: `${seg.colStart + 1} / ${seg.colEnd + 2}`,
-                paddingTop: BAR_TOP_BASE_PX + seg.lane * BAR_LANE_STEP_PX,
-              }}
-              className="month-cal-span-slot"
-            >
-              <div
-                className={`month-cal-bar ${seg.themeClass}`}
-                title={`${seg.booking.startTime}–${seg.booking.endTime} · ${seg.label}`}
+      <table className="month-cal-table" role="grid" aria-label="Month calendar">
+        <thead>
+          <tr>
+            {WEEKDAY_LABELS_SHORT.map((label, i) => (
+              <th
+                key={label}
+                className={`month-cal-weekday ${i === 0 ? 'month-cal-weekday--sun' : ''}`}
+                scope="col"
               >
-                {seg.label}
-              </div>
-            </div>
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((week, rowIdx) => (
+            <tr key={`week-${rowIdx}`}>
+              {week.map((cell, colIdx) => {
+                const dayKey = new Date(
+                  cell.date.getFullYear(),
+                  cell.date.getMonth(),
+                  cell.date.getDate(),
+                  0,
+                  0,
+                  0,
+                  0
+                ).getTime();
+                const dayBookings = bookingLabelsByDay.get(dayKey) ?? [];
+                const visibleBookings = dayBookings.slice(0, 2);
+
+                return (
+                  <td
+                    key={`${cell.date.getTime()}-${rowIdx}-${colIdx}`}
+                    className="month-cal-cell"
+                  >
+                    {renderDay(cell, rowIdx * 7 + colIdx)}
+                    {visibleBookings.length > 0 ? (
+                      <div className="month-cal-day-bookings" aria-hidden>
+                        {visibleBookings.map((item) => (
+                          <div
+                            key={item.key}
+                            className={`month-cal-day-booking-chip ${item.themeClass}`}
+                            title={item.text}
+                          >
+                            {item.text}
+                          </div>
+                        ))}
+                        {dayBookings.length > visibleBookings.length ? (
+                          <div className="month-cal-day-booking-more">
+                            +{dayBookings.length - visibleBookings.length} more
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
           ))}
-        </div>
-      </div>
+        </tbody>
+      </table>
     </div>
   );
 };
