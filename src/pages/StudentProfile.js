@@ -297,9 +297,9 @@ const StudentProfile = () => {
 
                     if (!inCurrentMonth) {
                       return (
-                        <div className="flex h-full flex-col items-end">
+                        <div className="month-cal-day-out">
                           <span
-                            className={`text-xs font-medium tabular-nums ${
+                            className={`month-cal-day-out-num ${
                               isSunday ? 'text-red-300' : 'text-neutral-400'
                             }`}
                           >
@@ -309,32 +309,26 @@ const StudentProfile = () => {
                       );
                     }
 
-                    const cellBg = unavailable
-                      ? 'bg-red-50/75 backdrop-blur-[1px]'
-                      : 'bg-white/40 backdrop-blur-[1px]';
-
                     return (
                       <div
-                        className={`flex h-full min-h-[4.5rem] flex-col rounded-none p-0.5 text-xs ${cellBg} ${
-                          isToday ? 'ring-1 ring-inset ring-primary' : ''
-                        }`}
+                        className={`month-cal-day-static ${
+                          unavailable ? 'month-cal-day-static--unavail' : ''
+                        } ${isToday ? 'month-cal-day-static--today' : ''}`}
                       >
-                        <div className="mb-0.5 flex shrink-0 items-start justify-between gap-0.5">
+                        <div className="month-cal-day-row">
                           <span
-                            className={`flex h-7 min-w-[1.75rem] items-center justify-center text-xs font-semibold tabular-nums ${
+                            className={`month-cal-day-num ${
                               isToday
-                                ? 'rounded-full bg-primary px-1.5 text-white shadow-sm'
+                                ? 'month-cal-day-num--today'
                                 : isSunday
-                                  ? 'text-red-600'
-                                  : 'text-neutral-dark'
+                                  ? 'month-cal-day-num--sun'
+                                  : 'month-cal-day-num--default'
                             }`}
                           >
                             {date.getDate()}
                           </span>
                           {unavailable ? (
-                            <span className="text-[9px] font-medium uppercase tracking-tight text-red-600">
-                              Off
-                            </span>
+                            <span className="month-cal-off-label">Off</span>
                           ) : null}
                         </div>
                       </div>

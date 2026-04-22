@@ -81,13 +81,14 @@ function shortLabel(booking) {
   return `${t} ${name}`.trim();
 }
 
+/** Theme classes live in `src/index.css` (`.cal-bar-theme-*`) — not Tailwind. */
 const HASH_THEMES = [
-  'bg-primary text-white border border-primary shadow-sm',
-  'bg-secondary text-white border border-teal-600 shadow-sm',
-  'bg-sky-600 text-white border border-sky-700 shadow-sm',
-  'bg-blue-500 text-white border border-blue-600 shadow-sm',
-  'bg-cyan-600 text-white border border-cyan-700 shadow-sm',
-  'bg-indigo-500 text-white border border-indigo-600 shadow-sm',
+  'cal-bar-theme-0',
+  'cal-bar-theme-1',
+  'cal-bar-theme-2',
+  'cal-bar-theme-3',
+  'cal-bar-theme-4',
+  'cal-bar-theme-5',
 ];
 
 export function themeClassForBooking(booking) {

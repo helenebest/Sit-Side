@@ -6,6 +6,12 @@ const ROW_TEMPLATE = 'repeat(6, minmax(5.75rem, auto))';
 const BAR_TOP_BASE_PX = 30;
 const BAR_LANE_STEP_PX = 22;
 
+/** Inline so layout survives stale CDN CSS or missing hand-rolled utilities. */
+const GRID_7_COL = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+};
+
 /**
  * Traditional rectangular month calendar: header row + 6×7 grid with borders.
  * Optional `bookings` renders multi-day / overnight spans as continuous bars (under day cells).
@@ -29,36 +35,34 @@ const MonthCalendarGrid = ({
 
   return (
     <div
-      className={`rounded-lg border border-neutral-300 bg-white shadow-sm overflow-hidden ${className}`}
+      className={`month-cal ${className}`}
+      style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}
     >
-      {toolbar ? (
-        <div className="flex flex-wrap items-center gap-3 border-b border-neutral-300 bg-neutral-50 px-3 py-2.5">
-          {toolbar}
-        </div>
-      ) : null}
+      {toolbar ? <div className="month-cal-toolbar">{toolbar}</div> : null}
 
-      <div className="grid grid-cols-7 border-b border-neutral-300 bg-gradient-to-b from-sky-50/80 to-slate-50/90">
+      <div className="month-cal-weekdays" style={GRID_7_COL}>
         {WEEKDAY_LABELS_SHORT.map((label, i) => (
           <div
             key={label}
-            className={`py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-neutral-600 border-r border-neutral-300 last:border-r-0 ${
-              i === 0 ? 'text-red-600' : ''
-            }`}
+            className={`month-cal-weekday ${i === 0 ? 'month-cal-weekday--sun' : ''}`}
           >
             {label}
           </div>
         ))}
       </div>
 
-      <div className="relative bg-slate-50/30">
+      <div
+        className="month-cal-body"
+        style={{ position: 'relative', width: '100%', minWidth: 0 }}
+      >
         <div
-          className="relative z-[2] grid grid-cols-7 grid-rows-6"
-          style={{ gridTemplateRows: ROW_TEMPLATE }}
+          className="month-cal-grid month-cal-grid--cells"
+          style={{ ...GRID_7_COL, gridTemplateRows: ROW_TEMPLATE }}
         >
           {cells.map((cell, index) => (
             <div
               key={`${cell.date.getTime()}-${index}`}
-              className="min-h-0 border-r border-b border-neutral-200 [&:nth-child(7n)]:border-r-0 p-0.5 sm:p-1 align-top box-border"
+              className="month-cal-cell"
             >
               {renderDay(cell, index)}
             </div>
@@ -66,8 +70,18 @@ const MonthCalendarGrid = ({
         </div>
 
         <div
-          className="pointer-events-none absolute inset-0 z-[1] grid grid-cols-7 grid-rows-6"
-          style={{ gridTemplateRows: ROW_TEMPLATE }}
+          className="month-cal-grid month-cal-grid--overlay"
+          style={{
+            ...GRID_7_COL,
+            gridTemplateRows: ROW_TEMPLATE,
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
           aria-hidden
         >
           {spanSegments.map((seg) => (
@@ -78,10 +92,10 @@ const MonthCalendarGrid = ({
                 gridColumn: `${seg.colStart + 1} / ${seg.colEnd + 2}`,
                 paddingTop: BAR_TOP_BASE_PX + seg.lane * BAR_LANE_STEP_PX,
               }}
-              className="px-0.5"
+              className="month-cal-span-slot"
             >
               <div
-                className={`flex h-[20px] w-full items-center rounded-sm px-1.5 text-[10px] font-semibold leading-tight shadow-sm truncate ${seg.themeClass}`}
+                className={`month-cal-bar ${seg.themeClass}`}
                 title={`${seg.booking.startTime}–${seg.booking.endTime} · ${seg.label}`}
               >
                 {seg.label}
