@@ -48,6 +48,9 @@ const StudentDashboard = () => {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [savingUnavailableDates, setSavingUnavailableDates] = useState(false);
+  const [dayAvailabilityDialogOpen, setDayAvailabilityDialogOpen] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
+  const [selectedCalendarDateBlocked, setSelectedCalendarDateBlocked] = useState(false);
   const unavailableDates = useMemo(
     () =>
       (user?.unavailableDates || []).map((d) => {
@@ -159,32 +162,39 @@ const StudentDashboard = () => {
     return unavailableDates.includes(key);
   };
 
-  const handleToggleUnavailableDate = async (date) => {
+  const handleOpenDayAvailabilityDialog = (date) => {
     const today = new Date();
     const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
     const normalizedClicked = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    if (normalizedClicked < normalizedToday || savingUnavailableDates) return;
 
-    if (normalizedClicked < normalizedToday) {
-      return;
-    }
+    setSelectedCalendarDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+    setSelectedCalendarDateBlocked(unavailableDates.includes(normalizedClicked));
+    setDayAvailabilityDialogOpen(true);
+  };
 
-    if (!user) return;
+  const handleSaveDayAvailability = async () => {
+    if (!user || !selectedCalendarDate) return;
+
+    const selectedTs = new Date(
+      selectedCalendarDate.getFullYear(),
+      selectedCalendarDate.getMonth(),
+      selectedCalendarDate.getDate()
+    ).getTime();
 
     const currentSet = new Set(unavailableDates);
-    if (currentSet.has(normalizedClicked)) {
-      currentSet.delete(normalizedClicked);
+    if (selectedCalendarDateBlocked) {
+      currentSet.add(selectedTs);
     } else {
-      currentSet.add(normalizedClicked);
+      currentSet.delete(selectedTs);
     }
 
-    const isoDates = Array.from(currentSet).map((ts) => {
-      const d = new Date(ts);
-      return d.toISOString();
-    });
-
+    const isoDates = Array.from(currentSet).map((ts) => new Date(ts).toISOString());
     setSavingUnavailableDates(true);
     try {
       await updateUnavailableDates(isoDates);
+      setDayAvailabilityDialogOpen(false);
+      setSelectedCalendarDate(null);
     } finally {
       setSavingUnavailableDates(false);
     }
@@ -524,7 +534,7 @@ const StudentDashboard = () => {
                 <div className="mb-4">
                   <h3 className="text-xl font-semibold text-neutral-dark">Calendar</h3>
                   <p className="text-sm text-neutral-light mt-1">
-                    Tap a future day to block or unblock. Bookings show as colored bars across days (including overnight sits). Gray numbers are outside this month.
+                    Tap a future day to edit that specific date&apos;s availability. Bookings show as colored bars across days (including overnight sits). Gray numbers are outside this month.
                   </p>
                 </div>
 
@@ -599,7 +609,7 @@ const StudentDashboard = () => {
                       <button
                         type="button"
                         disabled={isPast || savingUnavailableDates}
-                        onClick={() => handleToggleUnavailableDate(date)}
+                        onClick={() => handleOpenDayAvailabilityDialog(date)}
                         className={`month-cal-day-btn transition-colors ${
                           unavailable ? 'month-cal-day-btn--unavail' : 'month-cal-day-btn--avail'
                         } ${isToday ? 'month-cal-day-btn--today' : ''}`}
@@ -775,6 +785,63 @@ const StudentDashboard = () => {
               </OutlineButton>
               <PrimaryButton onClick={handleAvailabilityUpdate} className="flex-1">
                 Add
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Per-day Availability Dialog */}
+      {dayAvailabilityDialogOpen && selectedCalendarDate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold text-neutral-dark mb-2">Edit Day Availability</h3>
+            <p className="text-sm text-neutral-light mb-4">
+              {selectedCalendarDate.toLocaleDateString(undefined, {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </p>
+
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm text-neutral-dark">
+                <input
+                  type="radio"
+                  name="dayAvailability"
+                  checked={!selectedCalendarDateBlocked}
+                  onChange={() => setSelectedCalendarDateBlocked(false)}
+                />
+                Available for booking requests
+              </label>
+              <label className="flex items-center gap-2 text-sm text-neutral-dark">
+                <input
+                  type="radio"
+                  name="dayAvailability"
+                  checked={selectedCalendarDateBlocked}
+                  onChange={() => setSelectedCalendarDateBlocked(true)}
+                />
+                Block this day (unavailable)
+              </label>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <OutlineButton
+                onClick={() => {
+                  setDayAvailabilityDialogOpen(false);
+                  setSelectedCalendarDate(null);
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </OutlineButton>
+              <PrimaryButton
+                onClick={handleSaveDayAvailability}
+                className="flex-1"
+                disabled={savingUnavailableDates}
+              >
+                {savingUnavailableDates ? 'Saving…' : 'Save'}
               </PrimaryButton>
             </div>
           </div>
