@@ -14,7 +14,6 @@ const ParentDashboard = lazy(() => import('./pages/ParentDashboard'));
 const StudentProfile = lazy(() => import('./pages/StudentProfile'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const MessagingPage = lazy(() => import('./pages/MessagingPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -38,7 +37,6 @@ function App() {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/student" element={<StudentDashboard />} />
               <Route path="/parent" element={<ParentDashboard />} />
-              <Route path="/messages" element={<MessagingPage />} />
               <Route path="/student/:id" element={<StudentProfile />} />
               <Route path="/booking/:studentId" element={<BookingPage />} />
               <Route path="/admin" element={<AdminDashboard />} />
