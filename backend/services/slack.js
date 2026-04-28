@@ -104,8 +104,35 @@ const sendBookingMessageToStudent = async (booking, parent, message) => {
   await postSlackMessage({ student, text });
 };
 
+/**
+ * Notify admins that a student/parent account is pending approval.
+ */
+const notifyAdminPendingUserApproval = async (user) => {
+  if (!isSlackConfigured()) return;
+  if (!defaultChannel) return;
+
+  const lines = [
+    '🆕 *Account pending approval*',
+    '',
+    `*Name:* ${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+    `*Email:* ${user?.email || 'N/A'}`,
+    `*Role:* ${user?.userType || 'N/A'}`,
+    `*Created:* ${user?.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}`,
+  ];
+
+  try {
+    await slackClient.chat.postMessage({
+      channel: defaultChannel,
+      text: lines.join('\n'),
+    });
+  } catch (error) {
+    console.error('Error sending admin approval Slack message:', error);
+  }
+};
+
 module.exports = {
   isSlackConfigured,
   notifyBookingCreated,
   sendBookingMessageToStudent,
+  notifyAdminPendingUserApproval,
 };

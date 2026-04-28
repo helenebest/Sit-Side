@@ -140,7 +140,8 @@ export const AuthProvider = ({ children }) => {
       });
 
       safeLocalStorage.setItem('token', data.token);
-      const normalized = normalizeUserFromApi(data.user);
+      const profile = await apiRequest('/auth/me');
+      const normalized = normalizeUserFromApi(profile.user || data.user);
       setUser(normalized);
       return { success: true, user: normalized };
     } catch (error) {
@@ -156,8 +157,10 @@ export const AuthProvider = ({ children }) => {
       });
 
       safeLocalStorage.setItem('token', data.token);
-      setUser(normalizeUserFromApi(data.user));
-      return { success: true };
+      const profile = await apiRequest('/auth/me');
+      const normalized = normalizeUserFromApi(profile.user || data.user);
+      setUser(normalized);
+      return { success: true, user: normalized };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -294,6 +297,14 @@ export const AuthProvider = ({ children }) => {
         method: 'PUT',
         body: JSON.stringify({ availability }),
       });
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              availability: data?.availability ?? availability,
+            }
+          : prev
+      );
 
       return { success: true, data };
     } catch (error) {
@@ -307,6 +318,14 @@ export const AuthProvider = ({ children }) => {
         method: 'PUT',
         body: JSON.stringify({ dates }),
       });
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              unavailableDates: data?.unavailableDates ?? [],
+            }
+          : prev
+      );
 
       return { success: true, data };
     } catch (error) {
