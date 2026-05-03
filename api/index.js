@@ -11,11 +11,19 @@ const app = express();
 let mongoConnectionPromise = null;
 function connectToDatabase() {
   if (!mongoConnectionPromise) {
-    const mongoUri = process.env.MONGODB_URI;
+    const mongoUri = (process.env.MONGODB_URI || '').trim();
     if (!mongoUri) {
       throw new Error('MONGODB_URI is required for persistent API storage.');
     }
-    mongoConnectionPromise = mongoose.connect(mongoUri);
+    mongoConnectionPromise = mongoose.connect(mongoUri).catch(async (err) => {
+      mongoConnectionPromise = null;
+      try {
+        await mongoose.disconnect();
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    });
   }
   return mongoConnectionPromise;
 }
