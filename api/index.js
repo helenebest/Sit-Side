@@ -1,32 +1,11 @@
 // Serverless API entrypoint (Vercel/Netlify) backed by MongoDB.
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { connectToDatabase } = require('./lib/db');
 
 const app = express();
-
-// Reuse DB connection across warm serverless invocations.
-let mongoConnectionPromise = null;
-function connectToDatabase() {
-  if (!mongoConnectionPromise) {
-    const mongoUri = (process.env.MONGODB_URI || '').trim();
-    if (!mongoUri) {
-      throw new Error('MONGODB_URI is required for persistent API storage.');
-    }
-    mongoConnectionPromise = mongoose.connect(mongoUri).catch(async (err) => {
-      mongoConnectionPromise = null;
-      try {
-        await mongoose.disconnect();
-      } catch {
-        /* ignore */
-      }
-      throw err;
-    });
-  }
-  return mongoConnectionPromise;
-}
 
 app.use(
   cors({
@@ -57,7 +36,8 @@ app.use(async (req, res, next) => {
     await connectToDatabase();
     next();
   } catch (error) {
-    console.error('Database connection failed:', error);
+    const code = error && (error.codeName || error.code);
+    console.error('Database connection failed:', code || error.name, error.message);
     res.status(500).json({ error: 'Database connection failed' });
   }
 });
