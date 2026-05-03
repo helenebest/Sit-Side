@@ -7,8 +7,8 @@ const { connectToDatabase } = require('./lib/db');
 
 const app = express();
 
-// Vercel sets X-Forwarded-*; required so express-rate-limit and req.ip use the client, not the edge IP.
-app.set('trust proxy', true);
+// Vercel sets X-Forwarded-For. Use hop count (not `true`) so express-rate-limit accepts it and clients cannot spoof past the first proxy.
+app.set('trust proxy', 1);
 
 app.use(
   cors({
