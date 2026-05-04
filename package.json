@@ -53,6 +53,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "verify:db-retry": "node scripts/verify-api-db-retry.js",
+    "seed:admin": "node scripts/seed-admin.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
