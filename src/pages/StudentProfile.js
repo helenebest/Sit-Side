@@ -447,7 +447,7 @@ const StudentProfile = () => {
 
       {/* Quick Booking Dialog */}
       {bookingDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Quick Book {student.name}</h3>
             <div className="space-y-4">
