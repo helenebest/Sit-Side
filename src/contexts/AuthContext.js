@@ -40,13 +40,19 @@ const safeLocalStorage = {
   }
 };
 
+// Must exceed server-side Mongo serverSelectionTimeout (~15s) + cold start, or the client
+// aborts first and shows a misleading "backend not running" message on production.
+const API_REQUEST_TIMEOUT_MS = 28000;
+
+const isProductionBuild = process.env.NODE_ENV === 'production';
+
 // Helper function to make authenticated requests with timeout and retry logic
 const apiRequest = async (url, options = {}, retries = 2) => {
   const token = safeLocalStorage.getItem('token');
   
   // Create AbortController for timeout
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
   
   const config = {
     headers: {
@@ -87,10 +93,18 @@ const apiRequest = async (url, options = {}, retries = 2) => {
     
     // Handle network errors
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out. The backend server may not be running. Please start the backend server (see QUICK_START.md) and try again.');
+      throw new Error(
+        isProductionBuild
+          ? 'The request timed out. The server may be starting up or the database slow to respond. Please try again in a moment.'
+          : 'Request timed out. The backend server may not be running. Please start the backend server (see QUICK_START.md) and try again.'
+      );
     }
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error('Cannot connect to backend server. Please make sure the backend server is running on port 5000 (see QUICK_START.md for instructions).');
+      throw new Error(
+        isProductionBuild
+          ? 'Could not reach the server. Check your connection, or try again later.'
+          : 'Cannot connect to backend server. Please make sure the backend server is running on port 5000 (see QUICK_START.md for instructions).'
+      );
     }
     throw error;
   }
