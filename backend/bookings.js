@@ -43,11 +43,6 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    // Check if student is verified
-    if (!student.isVerified) {
-      return res.status(400).json({ error: 'Student is not verified' });
-    }
-
     // Create booking
     const booking = new Booking({
       student: studentId,

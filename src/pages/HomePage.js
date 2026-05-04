@@ -4,7 +4,6 @@ import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
-import SitterCard from '../components/SitterCard';
 
 const HOME_SECTIONS = new Set(['how', 'featured', 'safety', 'testimonials']);
 
@@ -20,46 +19,6 @@ const HomePage = () => {
     }, 100);
     return () => clearTimeout(t);
   }, [location.pathname, location.hash]);
-  
-  // Core students featured on homepage (same as in ParentDashboard)
-  const sitters = [
-    {
-      id: 1001,
-      name: 'Helen Best',
-      grade: 11,
-      school: 'Windward High School',
-      rate: 18, // Extract from $18 – $25 / hour
-      rating: null,
-      tags: ['California Licensed Driver']
-    },
-    {
-      id: 1002,
-      name: 'Ava Parker',
-      grade: 11,
-      school: 'Windward High School',
-      rate: 20,
-      rating: null,
-      tags: ['California Licensed Driver', 'Youth Sports Coach']
-    },
-    {
-      id: 1003,
-      name: 'Lilah Rubinson',
-      grade: 11,
-      school: 'Windward High School',
-      rate: 20,
-      rating: null,
-      tags: ['California Licensed Driver']
-    },
-    {
-      id: 1004,
-      name: 'Lila Owens',
-      grade: 11,
-      school: 'Windward High School',
-      rate: 20,
-      rating: null,
-      tags: ['California Licensed Driver']
-    },
-  ];
 
   return (
     <div>
@@ -124,18 +83,23 @@ const HomePage = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-bold text-neutral-dark">Featured Sitters</h2>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="text-primary hover:underline"
               onClick={() => navigate('/signup?type=parent')}
             >
-              See all
+              Get started
             </button>
           </div>
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {sitters.map(s => (
-              <SitterCard key={s.id} {...s} />
-            ))}
+          <div className="mt-8 rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-soft">
+            <p className="text-neutral-dark font-medium">Real student sitters, not placeholders</p>
+            <p className="mt-2 text-neutral-light text-sm max-w-xl mx-auto">
+              After you sign in as a parent, the Sitters tab lists every active student profile from the database—no sample cards on this page.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <PrimaryButton onClick={() => navigate('/signup?type=parent')}>Find a sitter</PrimaryButton>
+              <OutlineButton onClick={() => navigate('/signup?type=student')}>Become a sitter</OutlineButton>
+            </div>
           </div>
         </div>
       </section>
