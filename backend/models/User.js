@@ -57,22 +57,13 @@ const userSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  try {
-    this.password = await bcrypt.hash(this.password, 12);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Update timestamp on save
-userSchema.pre('save', function(next) {
+// Hash password and bump updatedAt (async hooks must not use `next` — Mongoose 8+)
+userSchema.pre('save', async function () {
   this.updatedAt = new Date();
-  next();
+  if (!this.isModified('password')) {
+    return;
+  }
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
 // Compare password method
