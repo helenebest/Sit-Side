@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { studentsFromApiResponse } from '../utils/studentDisplay';
 
 const AuthContext = createContext();
 
@@ -213,8 +214,13 @@ export const AuthProvider = ({ children }) => {
   const getStudents = async (filters = {}) => {
     try {
       const queryParams = new URLSearchParams(filters);
-      const data = await apiRequest(`/users/students?${queryParams}`);
-      return { success: true, data };
+      const payload = await apiRequest(`/users/students?${queryParams}`);
+      const students = studentsFromApiResponse(payload);
+      return {
+        success: true,
+        data: students,
+        pagination: payload && typeof payload === 'object' ? payload.pagination : undefined,
+      };
     } catch (error) {
       return { success: false, error: error.message };
     }

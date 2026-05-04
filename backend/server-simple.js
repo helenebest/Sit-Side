@@ -36,7 +36,7 @@ const defaultAdmin = {
   email: 'admin@sitside.com',
   password: 'Tenacity2301!',
   firstName: 'Admin',
-  lastName: 'Helen',
+  lastName: 'User',
   userType: 'admin',
   token: `admin_token_${Date.now()}`,
   createdAt: new Date(),
@@ -72,13 +72,37 @@ const adminAuth = (req, res, next) => {
 
 // Auth routes
 app.post('/api/auth/register', (req, res) => {
-  const { email, password, firstName, lastName, phone, userType, grade, school } = req.body;
+  const {
+    email,
+    password,
+    firstName,
+    lastName,
+    phone,
+    userType,
+    grade,
+    school,
+    bio,
+    hourlyRate,
+    location,
+    certifications,
+    availability,
+  } = req.body;
   
   // Check if user exists
   if (users.find(u => u.email === email)) {
     return res.status(400).json({ error: 'User already exists' });
   }
   
+  const defaultAvailability = {
+    monday: { morning: false, afternoon: true, evening: true },
+    tuesday: { morning: false, afternoon: true, evening: true },
+    wednesday: { morning: false, afternoon: true, evening: true },
+    thursday: { morning: false, afternoon: true, evening: true },
+    friday: { morning: false, afternoon: true, evening: true },
+    saturday: { morning: true, afternoon: true, evening: true },
+    sunday: { morning: true, afternoon: true, evening: false },
+  };
+
   // Create user
   const user = {
     id: nextUserId++,
@@ -90,11 +114,19 @@ app.post('/api/auth/register', (req, res) => {
     userType,
     grade,
     school,
+    bio: typeof bio === 'string' ? bio.trim() : '',
+    hourlyRate:
+      hourlyRate != null && hourlyRate !== '' && Number.isFinite(Number(hourlyRate))
+        ? Number(hourlyRate)
+        : 15,
+    location: typeof location === 'string' ? location.trim() : '',
+    certifications: Array.isArray(certifications) ? certifications : [],
+    availability: availability && typeof availability === 'object' ? availability : defaultAvailability,
     token: `token_${nextUserId}_${Date.now()}`,
     rating: 0,
     reviewCount: 0,
     isVerified: true,
-    createdAt: new Date()
+    createdAt: new Date(),
   };
   
   users.push(user);
@@ -158,7 +190,8 @@ app.get('/api/auth/verify', auth, (req, res) => {
 app.get('/api/users/students', auth, (req, res) => {
   const students = users.filter(u => u.userType === 'student');
   res.json({
-    students: students.map(s => ({
+    students: students.map((s) => ({
+      _id: String(s.id),
       id: s.id,
       firstName: s.firstName,
       lastName: s.lastName,
@@ -167,10 +200,11 @@ app.get('/api/users/students', auth, (req, res) => {
       school: s.school,
       rating: s.rating,
       reviewCount: s.reviewCount,
-      hourlyRate: 15,
-      location: 'Downtown Area',
-      bio: 'Experienced babysitter with CPR certification.',
-      certifications: ['CPR Certified', 'First Aid']
+      hourlyRate: typeof s.hourlyRate === 'number' ? s.hourlyRate : 15,
+      location: s.location || '',
+      bio: s.bio || '',
+      certifications: Array.isArray(s.certifications) ? s.certifications : [],
+      availability: s.availability,
     })),
     pagination: {
       page: 1,
@@ -189,6 +223,7 @@ app.get('/api/users/students/:id', auth, (req, res) => {
   
   res.json({
     student: {
+      _id: String(student.id),
       id: student.id,
       firstName: student.firstName,
       lastName: student.lastName,
@@ -197,20 +232,12 @@ app.get('/api/users/students/:id', auth, (req, res) => {
       school: student.school,
       rating: student.rating,
       reviewCount: student.reviewCount,
-      hourlyRate: 15,
-      location: 'Downtown Area',
-      bio: 'Experienced babysitter with CPR certification.',
-      certifications: ['CPR Certified', 'First Aid'],
-      availability: {
-        monday: { morning: false, afternoon: true, evening: true },
-        tuesday: { morning: false, afternoon: true, evening: true },
-        wednesday: { morning: false, afternoon: true, evening: true },
-        thursday: { morning: false, afternoon: true, evening: true },
-        friday: { morning: false, afternoon: true, evening: true },
-        saturday: { morning: true, afternoon: true, evening: true },
-        sunday: { morning: true, afternoon: true, evening: false }
-      }
-    }
+      hourlyRate: typeof student.hourlyRate === 'number' ? student.hourlyRate : 15,
+      location: student.location || '',
+      bio: student.bio || '',
+      certifications: Array.isArray(student.certifications) ? student.certifications : [],
+      availability: student.availability,
+    },
   });
 });
 

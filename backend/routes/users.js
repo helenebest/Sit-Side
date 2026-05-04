@@ -15,11 +15,10 @@ router.get('/students', auth, requireStudentOrParent, async (req, res) => {
       limit = 10 
     } = req.query;
 
-    // Build filter object
-    const filter = { 
-      userType: 'student', 
+    // Build filter object (list all active student profiles; verification is a trust signal, not a browse gate)
+    const filter = {
+      userType: 'student',
       isActive: true,
-      isVerified: true 
     };
 
     // Add location filter
@@ -96,10 +95,9 @@ router.get('/search', auth, requireStudentOrParent, async (req, res) => {
       return res.status(400).json({ error: 'Search query required' });
     }
 
-    const filter = { 
-      userType: 'student', 
+    const filter = {
+      userType: 'student',
       isActive: true,
-      isVerified: true 
     };
 
     // Text search
