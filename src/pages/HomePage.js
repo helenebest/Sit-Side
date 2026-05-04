@@ -1,13 +1,25 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import SitterCard from '../components/SitterCard';
 
+const HOME_SECTIONS = new Set(['how', 'featured', 'safety', 'testimonials']);
+
 const HomePage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const id = (location.hash || '').replace(/^#/, '');
+    if (!id || !HOME_SECTIONS.has(id)) return undefined;
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [location.pathname, location.hash]);
   
   // Core students featured on homepage (same as in ParentDashboard)
   const sitters = [
@@ -175,7 +187,20 @@ const HomePage = () => {
           <p className="mt-2 text-neutral-light">Create your account and join our trusted community today.</p>
           <div className="mt-6 flex justify-center gap-3">
             <PrimaryButton onClick={() => navigate('/signup')}>Get Started</PrimaryButton>
-            <OutlineButton onClick={() => navigate('/#how')}>Learn More</OutlineButton>
+            <OutlineButton
+              onClick={() => {
+                if (location.pathname === '/') {
+                  document.getElementById('how')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                  navigate('/');
+                  setTimeout(() => {
+                    document.getElementById('how')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 400);
+                }
+              }}
+            >
+              Learn More
+            </OutlineButton>
           </div>
         </div>
       </section>
