@@ -1,4 +1,6 @@
-const mongoose = require('mongoose');
+const path = require('path');
+// Same Mongoose instance as backend/* (never use a nested backend/node_modules copy).
+const mongoose = require(path.join(__dirname, '..', '..', 'node_modules', 'mongoose'));
 
 mongoose.set('bufferCommands', false);
 

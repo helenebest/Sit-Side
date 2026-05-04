@@ -4,8 +4,9 @@
  */
 process.env.MONGODB_URI = 'mongodb://127.0.0.1:1/dummy-for-verify-script';
 
+const path = require('path');
 const http = require('http');
-const mongoose = require('mongoose');
+const mongoose = require(path.join(__dirname, '..', 'node_modules', 'mongoose'));
 
 let connectCalls = 0;
 const realConnect = mongoose.connect.bind(mongoose);
