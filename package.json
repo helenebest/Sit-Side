@@ -56,6 +56,9 @@
     "seed:admin": "node scripts/seed-admin.js",
     "eject": "react-scripts eject"
   },
+  "devDependencies": {
+    "dotenv": "^16.6.1"
+  },
   "eslintConfig": {
     "extends": [
       "react-app",

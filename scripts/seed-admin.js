@@ -29,11 +29,37 @@ const mongoose = require('../backend/mongoose');
 const { connectToDatabase } = require('../api/lib/db');
 const User = require('../backend/models/User');
 
+function hasMongoConfig() {
+  if ((process.env.MONGODB_URI || '').trim()) return true;
+  const user = (process.env.MONGODB_USER || process.env.MONGODB_USERNAME || '').trim();
+  const pass = process.env.MONGODB_PASSWORD != null ? String(process.env.MONGODB_PASSWORD) : '';
+  const host = (process.env.MONGODB_HOST || '').trim();
+  return Boolean(user && pass && host);
+}
+
 async function main() {
   const password = process.env.ADMIN_PASSWORD;
   if (!password || !String(password).trim()) {
     console.error(
       'Missing ADMIN_PASSWORD.\nExample:\n  ADMIN_PASSWORD="your-secure-password" npm run seed:admin\n\nOptional: ADMIN_EMAIL (default admin@sitside.com)'
+    );
+    process.exit(1);
+  }
+
+  if (!hasMongoConfig()) {
+    console.error(
+      [
+        'MongoDB env vars are not set in this shell.',
+        '',
+        'Option A — project root file `.env.local` (gitignored), then run `npm install` and `npm run seed:admin` again:',
+        '  MONGODB_URI=mongodb+srv://...',
+        '  (or MONGODB_USER + MONGODB_PASSWORD + MONGODB_HOST)',
+        '',
+        'Option B — same line as admin (use straight single quotes if password has !):',
+        "  MONGODB_URI='mongodb+srv://...' ADMIN_EMAIL='...' ADMIN_PASSWORD='...' npm run seed:admin",
+        '',
+        'Use the same values as Vercel → Settings → Environment Variables.',
+      ].join('\n')
     );
     process.exit(1);
   }
