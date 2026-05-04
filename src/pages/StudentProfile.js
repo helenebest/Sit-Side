@@ -10,8 +10,19 @@ import { useAuth } from '../contexts/AuthContext';
 const StudentProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getStudentProfile, getStudentBookings } = useAuth();
+  const { user, getStudentProfile, getStudentBookings, createBooking } = useAuth();
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [quickBookingData, setQuickBookingData] = useState({
+    date: '',
+    startTime: '',
+    endTime: '',
+    numberOfChildren: 1,
+    specialInstructions: '',
+    emergencyContact: '',
+  });
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingSubmitError, setBookingSubmitError] = useState('');
+  const [bookingSubmitSuccess, setBookingSubmitSuccess] = useState('');
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,11 +103,67 @@ const StudentProfile = () => {
   }, [id, calendarMonth, getStudentBookings]);
 
   const handleBookNow = () => {
+    setQuickBookingData({
+      date: '',
+      startTime: '',
+      endTime: '',
+      numberOfChildren: 1,
+      specialInstructions: '',
+      emergencyContact: user?.phone || '',
+    });
+    setBookingSubmitError('');
+    setBookingSubmitSuccess('');
     setBookingDialogOpen(true);
   };
 
-  const handleBookingSubmit = () => {
-    setBookingDialogOpen(false);
+  const handleBookingFieldChange = (event) => {
+    const { name, value } = event.target;
+    setQuickBookingData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleBookingSubmit = async () => {
+    if ((!student?._id && !student?.id) || bookingSubmitting) return;
+
+    if (
+      !quickBookingData.date ||
+      !quickBookingData.startTime ||
+      !quickBookingData.endTime ||
+      !quickBookingData.emergencyContact.trim()
+    ) {
+      setBookingSubmitError('Please complete date, time, and emergency contact.');
+      return;
+    }
+
+    setBookingSubmitting(true);
+    setBookingSubmitError('');
+    setBookingSubmitSuccess('');
+
+    try {
+      const payload = {
+        studentId: String(student._id || student.id),
+        date: quickBookingData.date,
+        startTime: quickBookingData.startTime,
+        endTime: quickBookingData.endTime,
+        numberOfChildren: Number(quickBookingData.numberOfChildren),
+        specialInstructions: quickBookingData.specialInstructions.trim(),
+        emergencyContact: quickBookingData.emergencyContact.trim(),
+      };
+
+      const result = await createBooking(payload);
+      if (!result.success) {
+        throw new Error(result.error || 'Unable to create booking request.');
+      }
+
+      setBookingSubmitSuccess('Booking request sent successfully.');
+      setBookingDialogOpen(false);
+    } catch (submitError) {
+      setBookingSubmitError(submitError.message || 'Unable to create booking request.');
+    } finally {
+      setBookingSubmitting(false);
+    }
   };
 
   const getAvailabilityText = (day, slots) => {
@@ -445,6 +512,12 @@ const StudentProfile = () => {
         </div>
       </div>
 
+      {bookingSubmitSuccess && (
+        <div className="mt-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {bookingSubmitSuccess}
+        </div>
+      )}
+
       {/* Quick Booking Dialog */}
       {bookingDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
@@ -455,21 +528,33 @@ const StudentProfile = () => {
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>
                 <input
                   type="date"
+                  name="date"
+                  value={quickBookingData.date}
+                  onChange={handleBookingFieldChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Start Time</label>
                 <input
                   type="time"
+                  name="startTime"
+                  value={quickBookingData.startTime}
+                  onChange={handleBookingFieldChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">End Time</label>
                 <input
                   type="time"
+                  name="endTime"
+                  value={quickBookingData.endTime}
+                  onChange={handleBookingFieldChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
               </div>
               <div>
@@ -478,24 +563,52 @@ const StudentProfile = () => {
                   type="number"
                   min="1"
                   max="10"
+                  name="numberOfChildren"
+                  value={quickBookingData.numberOfChildren}
+                  onChange={handleBookingFieldChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Emergency Contact</label>
+                <input
+                  type="tel"
+                  name="emergencyContact"
+                  value={quickBookingData.emergencyContact}
+                  onChange={handleBookingFieldChange}
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Phone number we can reach during the booking"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Special Instructions</label>
                 <textarea
+                  name="specialInstructions"
+                  value={quickBookingData.specialInstructions}
+                  onChange={handleBookingFieldChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                   rows={3}
-                  placeholder="Any special needs, allergies, or instructions..."
+                  placeholder="Any special needs, allergies, instructions, and your address/meet-up location..."
                 />
               </div>
+              {bookingSubmitError && (
+                <div className="text-sm text-red-600">
+                  {bookingSubmitError}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <OutlineButton onClick={() => setBookingDialogOpen(false)} className="flex-1">
                 Cancel
               </OutlineButton>
-              <PrimaryButton onClick={handleBookingSubmit} className="flex-1">
-                Send Booking Request
+              <PrimaryButton
+                onClick={handleBookingSubmit}
+                className="flex-1"
+                disabled={bookingSubmitting}
+              >
+                {bookingSubmitting ? 'Sending…' : 'Send Booking Request'}
               </PrimaryButton>
             </div>
           </div>

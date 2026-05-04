@@ -3,6 +3,7 @@ const Booking = require('../models/Booking');
 const User = require('../models/User');
 const { auth, requireStudentOrParent } = require('../middleware/auth');
 const { notifyBookingCreated, sendBookingMessageToStudent } = require('../services/slack');
+const { sendBookingConfirmationEmails } = require('../services/email');
 const router = express.Router();
 
 // Create new booking
@@ -77,6 +78,9 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
     // Fire-and-forget Slack notification (does not block response)
     notifyBookingCreated(booking, parentMessage).catch((err) => {
       console.error('Slack notifyBookingCreated error:', err);
+    });
+    sendBookingConfirmationEmails(booking).catch((err) => {
+      console.error('Email sendBookingConfirmationEmails error:', err);
     });
 
     res.status(201).json({
