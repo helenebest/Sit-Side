@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getJwtSecret } = require('../lib/jwtSecret');
 const { auth } = require('../middleware/auth');
 const { notifyAdminPendingUserApproval } = require('../services/slack');
 const router = express.Router();
@@ -113,8 +114,8 @@ router.post('/register', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, userType: user.userType }, 
-      process.env.JWT_SECRET, 
+      { userId: user._id, userType: user.userType },
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -187,8 +188,8 @@ router.post('/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, userType: user.userType }, 
-      process.env.JWT_SECRET, 
+      { userId: user._id, userType: user.userType },
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
