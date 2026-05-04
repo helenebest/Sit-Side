@@ -68,3 +68,9 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Vercel: “403 Forbidden” in the deployment preview
+
+This app’s static `/` route is not protected with `403` in code. If the **thumbnail / embedded preview** on the Vercel **Deployments** page shows `Error: Forbidden` with an id like `sfo1::…`, but **opening the production domain in a normal browser tab** (for example `https://www.sitside.com`) returns **200** and the site loads, that is usually **Vercel’s edge** (screenshot service vs automatic DDoS mitigation, or deployment protection)—not a broken build. Confirm using a direct tab, not only the dashboard iframe.
+
+If **real users** hit `403` as well, check **Project → Settings → Deployment Protection**, **Security → Firewall** (custom rules / geo blocks), and open a ticket with **Vercel Support** including the request id from the error page.
