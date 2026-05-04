@@ -663,7 +663,7 @@ const StudentDashboard = () => {
 
       {/* Profile Edit Dialog */}
       {profileDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Edit Profile</h3>
             <div className="space-y-4">
@@ -744,7 +744,7 @@ const StudentDashboard = () => {
 
       {/* Availability Dialog */}
       {availabilityDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Add Availability</h3>
             <div className="space-y-4">
@@ -793,7 +793,7 @@ const StudentDashboard = () => {
 
       {/* Per-day Availability Dialog */}
       {dayAvailabilityDialogOpen && selectedCalendarDate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-2">Edit Day Availability</h3>
             <p className="text-sm text-neutral-light mb-4">
@@ -850,7 +850,7 @@ const StudentDashboard = () => {
 
       {/* Add Certification Dialog */}
       {certificationDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Add Certification</h3>
             <div className="space-y-4">
@@ -879,7 +879,7 @@ const StudentDashboard = () => {
 
       {/* Message Parent Dialog */}
       {messageDialogOpen && selectedBookingForMessage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col">
             <h3 className="text-xl font-semibold text-neutral-dark mb-2">
               Message {selectedBookingForMessage.parent

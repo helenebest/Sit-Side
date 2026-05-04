@@ -442,7 +442,7 @@ const ParentDashboard = () => {
 
       {/* Booking Dialog */}
       {bookingDialogOpen && selectedStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Book {selectedStudent.name}</h3>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
@@ -502,7 +502,7 @@ const ParentDashboard = () => {
 
       {/* Message Sitter Dialog */}
       {messageDialogOpen && selectedBooking && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col">
             <h3 className="text-xl font-semibold text-neutral-dark mb-2">
               Message {selectedBooking.student
