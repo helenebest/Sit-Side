@@ -83,4 +83,4 @@ Credentials are **not** stored in the repo. After MongoDB is configured locally 
 ADMIN_PASSWORD='choose-a-strong-password' npm run seed:admin
 ```
 
-Optional env: `ADMIN_EMAIL` (default `admin@sitside.com`), `ADMIN_FIRST_NAME`, `ADMIN_LAST_NAME`, `ADMIN_PHONE`. Use the same `MONGODB_URI` (or split Mongo vars) as the API. Then sign in at `/login` with that email and password.
+Optional env: `ADMIN_EMAIL` (default `admin@sitside.com`), `ADMIN_FIRST_NAME`, `ADMIN_LAST_NAME`, `ADMIN_PHONE`. Use the same `MONGODB_URI` (or split Mongo vars) as the API — either in **`.env.local`** in the project root (loaded automatically after `npm install`) or exported in the shell on the same line as the command. Then sign in at `/login` with that email and password.
