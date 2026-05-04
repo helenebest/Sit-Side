@@ -17,6 +17,7 @@ const StudentProfile = () => {
     startTime: '',
     endTime: '',
     numberOfChildren: 1,
+    meetupAddress: '',
     specialInstructions: '',
     emergencyContact: '',
   });
@@ -31,6 +32,7 @@ const StudentProfile = () => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [studentBookingsRefreshKey, setStudentBookingsRefreshKey] = useState(0);
 
   useEffect(() => {
     const loadStudent = async () => {
@@ -100,7 +102,16 @@ const StudentProfile = () => {
     return () => {
       cancelled = true;
     };
-  }, [id, calendarMonth, getStudentBookings]);
+  }, [id, calendarMonth, studentBookingsRefreshKey, getStudentBookings]);
+
+  const buildSpecialInstructionsPayload = (meetupAddress, specialInstructions) => {
+    const m = (meetupAddress || '').trim();
+    const s = (specialInstructions || '').trim();
+    const parts = [];
+    if (m) parts.push(`Meet-up address: ${m}`);
+    if (s) parts.push(s);
+    return parts.join('\n\n');
+  };
 
   const handleBookNow = () => {
     setQuickBookingData({
@@ -108,6 +119,7 @@ const StudentProfile = () => {
       startTime: '',
       endTime: '',
       numberOfChildren: 1,
+      meetupAddress: '',
       specialInstructions: '',
       emergencyContact: user?.phone || '',
     });
@@ -147,8 +159,14 @@ const StudentProfile = () => {
         date: quickBookingData.date,
         startTime: quickBookingData.startTime,
         endTime: quickBookingData.endTime,
-        numberOfChildren: Number(quickBookingData.numberOfChildren),
-        specialInstructions: quickBookingData.specialInstructions.trim(),
+        numberOfChildren: Math.min(
+          10,
+          Math.max(1, parseInt(quickBookingData.numberOfChildren, 10) || 1),
+        ),
+        specialInstructions: buildSpecialInstructionsPayload(
+          quickBookingData.meetupAddress,
+          quickBookingData.specialInstructions,
+        ),
         emergencyContact: quickBookingData.emergencyContact.trim(),
       };
 
@@ -159,6 +177,7 @@ const StudentProfile = () => {
 
       setBookingSubmitSuccess('Booking request sent successfully.');
       setBookingDialogOpen(false);
+      setStudentBookingsRefreshKey((k) => k + 1);
     } catch (submitError) {
       setBookingSubmitError(submitError.message || 'Unable to create booking request.');
     } finally {
@@ -583,6 +602,20 @@ const StudentProfile = () => {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Meet-up address</label>
+                <input
+                  type="text"
+                  name="meetupAddress"
+                  value={quickBookingData.meetupAddress}
+                  onChange={handleBookingFieldChange}
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Street address or where the sitter should meet you"
+                />
+                <p className="mt-1 text-xs text-neutral-light">
+                  Include enough detail so your sitter knows where to go (building, gate code, etc.).
+                </p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Special Instructions</label>
                 <textarea
                   name="specialInstructions"
@@ -590,7 +623,7 @@ const StudentProfile = () => {
                   onChange={handleBookingFieldChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                   rows={3}
-                  placeholder="Any special needs, allergies, instructions, and your address/meet-up location..."
+                  placeholder="Allergies, routines, parking, pets, or other notes..."
                 />
               </div>
               {bookingSubmitError && (

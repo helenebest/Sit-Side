@@ -44,6 +44,11 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    const hourlyRate =
+      typeof student.hourlyRate === 'number' && Number.isFinite(student.hourlyRate)
+        ? student.hourlyRate
+        : 15;
+
     // Create booking
     const booking = new Booking({
       student: studentId,
@@ -55,7 +60,7 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       childrenAges: childrenAges || [],
       specialInstructions: specialInstructions || '',
       emergencyContact,
-      hourlyRate: student.hourlyRate
+      hourlyRate,
     });
 
     // If parent included an initial message, store it in the conversation

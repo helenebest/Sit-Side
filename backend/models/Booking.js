@@ -78,20 +78,27 @@ const bookingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Update timestamp on save
-bookingSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
-  next();
-});
-
-// Calculate total amount before saving
-bookingSchema.pre('save', function(next) {
-  if (this.startTime && this.endTime && this.hourlyRate) {
+// totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
+bookingSchema.pre('validate', function (next) {
+  const rate = this.hourlyRate;
+  if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
     const start = new Date(`2000-01-01T${this.startTime}`);
     const end = new Date(`2000-01-01T${this.endTime}`);
     const hours = (end - start) / (1000 * 60 * 60);
-    this.totalAmount = Math.round(hours * this.hourlyRate * 100) / 100;
+    if (Number.isFinite(hours)) {
+      const raw = hours * Number(rate);
+      this.totalAmount = Math.round(Math.max(0, raw) * 100) / 100;
+    }
   }
+  if (this.totalAmount == null || Number.isNaN(this.totalAmount)) {
+    this.totalAmount = 0;
+  }
+  next();
+});
+
+// Update timestamp on save
+bookingSchema.pre('save', function (next) {
+  this.updatedAt = new Date();
   next();
 });
 

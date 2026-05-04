@@ -9,7 +9,7 @@ import { normalizeStudentForListing, studentsFromApiResponse } from '../utils/st
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
-  const { getStudents, getMyBookings, sendBookingMessage } = useAuth();
+  const { user, getStudents, getMyBookings, createBooking, sendBookingMessage } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [searchFilters, setSearchFilters] = useState({
     location: '',
@@ -19,6 +19,17 @@ const ParentDashboard = () => {
   });
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [parentQuickBook, setParentQuickBook] = useState({
+    date: '',
+    startTime: '',
+    endTime: '',
+    numberOfChildren: 1,
+    emergencyContact: '',
+    meetupAddress: '',
+    specialInstructions: '',
+  });
+  const [parentBookSubmitting, setParentBookSubmitting] = useState(false);
+  const [parentBookError, setParentBookError] = useState('');
   const [fetchedStudents, setFetchedStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError, setStudentsError] = useState('');
@@ -43,12 +54,83 @@ const ParentDashboard = () => {
   };
 
   const handleBookStudent = (student) => {
+    setParentQuickBook({
+      date: '',
+      startTime: '',
+      endTime: '',
+      numberOfChildren: 1,
+      emergencyContact: user?.phone || '',
+      meetupAddress: '',
+      specialInstructions: '',
+    });
+    setParentBookError('');
     setSelectedStudent(student);
     setBookingDialogOpen(true);
   };
 
-  const handleBookingSubmit = () => {
-    setBookingDialogOpen(false);
+  const handleParentQuickBookChange = (event) => {
+    const { name, value } = event.target;
+    setParentQuickBook((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const buildSpecialInstructionsPayload = (meetupAddress, specialInstructions) => {
+    const m = (meetupAddress || '').trim();
+    const s = (specialInstructions || '').trim();
+    const parts = [];
+    if (m) parts.push(`Meet-up address: ${m}`);
+    if (s) parts.push(s);
+    return parts.join('\n\n');
+  };
+
+  const handleBookingSubmit = async () => {
+    if (!selectedStudent?.id || parentBookSubmitting) return;
+
+    if (
+      !parentQuickBook.date ||
+      !parentQuickBook.startTime ||
+      !parentQuickBook.endTime ||
+      !parentQuickBook.emergencyContact.trim()
+    ) {
+      setParentBookError('Please complete date, times, and emergency contact.');
+      return;
+    }
+
+    setParentBookSubmitting(true);
+    setParentBookError('');
+
+    try {
+      const payload = {
+        studentId: String(selectedStudent.id),
+        date: parentQuickBook.date,
+        startTime: parentQuickBook.startTime,
+        endTime: parentQuickBook.endTime,
+        numberOfChildren: Math.min(
+          10,
+          Math.max(1, parseInt(parentQuickBook.numberOfChildren, 10) || 1),
+        ),
+        emergencyContact: parentQuickBook.emergencyContact.trim(),
+        specialInstructions: buildSpecialInstructionsPayload(
+          parentQuickBook.meetupAddress,
+          parentQuickBook.specialInstructions,
+        ),
+      };
+
+      const result = await createBooking(payload);
+      if (!result.success) {
+        throw new Error(result.error || 'Unable to create booking request.');
+      }
+
+      setBookingDialogOpen(false);
+      setActiveTab(1);
+      const refresh = await getMyBookings();
+      if (refresh.success) {
+        setBookings(refresh.data.bookings || []);
+      }
+    } catch (err) {
+      setParentBookError(err.message || 'Unable to create booking request.');
+    } finally {
+      setParentBookSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -453,21 +535,33 @@ const ParentDashboard = () => {
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>
                 <input
                   type="date"
+                  name="date"
+                  value={parentQuickBook.date}
+                  onChange={handleParentQuickBookChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Start Time</label>
                 <input
                   type="time"
+                  name="startTime"
+                  value={parentQuickBook.startTime}
+                  onChange={handleParentQuickBookChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">End Time</label>
                 <input
                   type="time"
+                  name="endTime"
+                  value={parentQuickBook.endTime}
+                  onChange={handleParentQuickBookChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
               </div>
               <div>
@@ -476,24 +570,64 @@ const ParentDashboard = () => {
                   type="number"
                   min="1"
                   max="10"
+                  name="numberOfChildren"
+                  value={parentQuickBook.numberOfChildren}
+                  onChange={handleParentQuickBookChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Emergency Contact</label>
+                <input
+                  type="tel"
+                  name="emergencyContact"
+                  value={parentQuickBook.emergencyContact}
+                  onChange={handleParentQuickBookChange}
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Phone number we can reach during the booking"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Meet-up address</label>
+                <input
+                  type="text"
+                  name="meetupAddress"
+                  value={parentQuickBook.meetupAddress}
+                  onChange={handleParentQuickBookChange}
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Street address or where the sitter should meet you"
+                />
+                <p className="mt-1 text-xs text-neutral-light">
+                  Include enough detail so your sitter knows where to go (building, gate code, etc.).
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Special Instructions</label>
                 <textarea
+                  name="specialInstructions"
+                  value={parentQuickBook.specialInstructions}
+                  onChange={handleParentQuickBookChange}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                   rows={3}
-                  placeholder="Any special needs, allergies, or instructions..."
+                  placeholder="Allergies, routines, parking, pets, or other notes..."
                 />
               </div>
+              {parentBookError && (
+                <div className="text-sm text-red-600">{parentBookError}</div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <OutlineButton onClick={() => setBookingDialogOpen(false)} className="flex-1">
                 Cancel
               </OutlineButton>
-              <PrimaryButton onClick={handleBookingSubmit} className="flex-1">
-                Send Booking Request
+              <PrimaryButton
+                onClick={handleBookingSubmit}
+                className="flex-1"
+                disabled={parentBookSubmitting}
+              >
+                {parentBookSubmitting ? 'Sending…' : 'Send Booking Request'}
               </PrimaryButton>
             </div>
           </div>
