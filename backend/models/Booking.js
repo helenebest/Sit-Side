@@ -79,7 +79,8 @@ const bookingSchema = new mongoose.Schema({
 });
 
 // totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
-bookingSchema.pre('validate', function (next) {
+// Mongoose 8+: sync hooks omit `next`; calling next() throws "next is not a function" in some runtimes.
+bookingSchema.pre('validate', function () {
   const rate = this.hourlyRate;
   if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
     const start = new Date(`2000-01-01T${this.startTime}`);
@@ -93,13 +94,11 @@ bookingSchema.pre('validate', function (next) {
   if (this.totalAmount == null || Number.isNaN(this.totalAmount)) {
     this.totalAmount = 0;
   }
-  next();
 });
 
 // Update timestamp on save
-bookingSchema.pre('save', function (next) {
+bookingSchema.pre('save', function () {
   this.updatedAt = new Date();
-  next();
 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
