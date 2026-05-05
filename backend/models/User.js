@@ -18,10 +18,24 @@ const userSchema = new mongoose.Schema({
   useSameRateForAllServices: { type: Boolean, default: true },
   hourlyRateTutor: { type: Number, min: 5, max: 50 },
   hourlyRateCoach: { type: Number, min: 5, max: 50 },
+  /** @deprecated Prefer tutoringOfferings; kept for backward compatibility */
   tutoringSubject: { type: String, trim: true },
   tutoringSubjectOther: { type: String, trim: true, maxlength: 120 },
+  tutoringOfferings: [
+    {
+      subject: { type: String, trim: true },
+      detail: { type: String, trim: true, maxlength: 120 },
+    },
+  ],
+  /** @deprecated Prefer coachingOfferings */
   coachingSport: { type: String, trim: true },
   coachingSportOther: { type: String, trim: true, maxlength: 120 },
+  coachingOfferings: [
+    {
+      sport: { type: String, trim: true },
+      detail: { type: String, trim: true, maxlength: 120 },
+    },
+  ],
   experience: { type: String, trim: true },
   certifications: [{ type: String, trim: true }],
   location: { type: String, trim: true },

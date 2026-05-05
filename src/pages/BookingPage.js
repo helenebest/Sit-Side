@@ -6,6 +6,16 @@ import Card from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { SERVICE_TYPES } from '../constants/serviceOfferings';
 import { getEffectiveHourlyRateForStudent } from '../utils/serviceRatesClient';
+import {
+  tutoringOfferingsFromUser,
+  coachingOfferingsFromUser,
+  tutoringOfferingLabel,
+  coachingOfferingLabel,
+  offeringKeySubject,
+  offeringKeySport,
+  parseSubjectOfferingKey,
+  parseSportOfferingKey,
+} from '../utils/studentOfferingsClient';
 
 const BookingPage = () => {
   const { studentId } = useParams();
@@ -30,6 +40,8 @@ const BookingPage = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [tutorOfferKey, setTutorOfferKey] = useState('');
+  const [coachOfferKey, setCoachOfferKey] = useState('');
 
   useEffect(() => {
     const loadStudent = async () => {
@@ -61,19 +73,21 @@ const BookingPage = () => {
             );
             if (Number.isFinite(parsed)) hourlyRate = parsed;
           }
+          const tutoringOfferings = tutoringOfferingsFromUser(studentData);
+          const coachingOfferings = coachingOfferingsFromUser(studentData);
           setStudent({
             id,
             name,
             hourlyRate,
             rating: studentData.rating || null,
-            tutoringSubject: studentData.tutoringSubject || '',
-            tutoringSubjectOther: studentData.tutoringSubjectOther || '',
-            coachingSport: studentData.coachingSport || '',
-            coachingSportOther: studentData.coachingSportOther || '',
+            tutoringOfferings,
+            coachingOfferings,
             useSameRateForAllServices: studentData.useSameRateForAllServices !== false,
             hourlyRateTutor: studentData.hourlyRateTutor,
             hourlyRateCoach: studentData.hourlyRateCoach,
           });
+          setTutorOfferKey(tutoringOfferings[0] ? offeringKeySubject(tutoringOfferings[0]) : '');
+          setCoachOfferKey(coachingOfferings[0] ? offeringKeySport(coachingOfferings[0]) : '');
         } else {
           setError('Student not found');
         }
@@ -94,6 +108,20 @@ const BookingPage = () => {
       emergencyContact: prev.emergencyContact.trim() ? prev.emergencyContact : user.phone,
     }));
   }, [user?.phone]);
+
+  useEffect(() => {
+    if (!student?.tutoringOfferings?.length) return;
+    if (bookingData.serviceType !== 'tutor') return;
+    const validKeys = student.tutoringOfferings.map(offeringKeySubject);
+    setTutorOfferKey((k) => (k && validKeys.includes(k) ? k : validKeys[0] || ''));
+  }, [bookingData.serviceType, student]);
+
+  useEffect(() => {
+    if (!student?.coachingOfferings?.length) return;
+    if (bookingData.serviceType !== 'coach') return;
+    const validKeys = student.coachingOfferings.map(offeringKeySport);
+    setCoachOfferKey((k) => (k && validKeys.includes(k) ? k : validKeys[0] || ''));
+  }, [bookingData.serviceType, student]);
 
   // If still loading or error, show loading/error state
   if (loading) {
@@ -164,6 +192,14 @@ const BookingPage = () => {
       const payload = {
         studentId: student.id,
         serviceType: bookingData.serviceType,
+        ...(bookingData.serviceType === 'tutor' &&
+          tutorOfferKey && {
+            tutoringOffering: parseSubjectOfferingKey(tutorOfferKey),
+          }),
+        ...(bookingData.serviceType === 'coach' &&
+          coachOfferKey && {
+            coachingOffering: parseSportOfferingKey(coachOfferKey),
+          }),
         date: bookingData.date,
         startTime: bookingData.startTime,
         endTime: bookingData.endTime,
@@ -204,8 +240,8 @@ const BookingPage = () => {
     }
   };
 
-  const tutorAvailable = Boolean(student?.tutoringSubject);
-  const coachAvailable = Boolean(student?.coachingSport);
+  const tutorAvailable = Boolean(student?.tutoringOfferings?.length);
+  const coachAvailable = Boolean(student?.coachingOfferings?.length);
 
   const renderBookingDetails = () => (
     <div>
@@ -232,21 +268,48 @@ const BookingPage = () => {
               );
             })}
           </select>
-          {bookingData.serviceType === 'tutor' && tutorAvailable && (
+          {bookingData.serviceType === 'tutor' && tutorAvailable &&
+            student.tutoringOfferings.length === 1 && (
+              <p className="text-xs text-neutral-light mt-1">
+                Topic: <span className="font-medium">{tutoringOfferingLabel(student.tutoringOfferings[0])}</span>
+              </p>
+            )}
+          {bookingData.serviceType === 'tutor' && tutorAvailable && student.tutoringOfferings.length > 1 && (
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-neutral-dark mb-1">Which topic?</label>
+              <select
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={tutorOfferKey}
+                onChange={(e) => setTutorOfferKey(e.target.value)}
+              >
+                {student.tutoringOfferings.map((o, i) => (
+                  <option key={`${offeringKeySubject(o)}-${i}`} value={offeringKeySubject(o)}>
+                    {tutoringOfferingLabel(o)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {bookingData.serviceType === 'coach' && coachAvailable && student.coachingOfferings.length === 1 && (
             <p className="text-xs text-neutral-light mt-1">
-              Subject:{' '}
-              {student.tutoringSubject === 'Other' && student.tutoringSubjectOther
-                ? `${student.tutoringSubject} (${student.tutoringSubjectOther})`
-                : student.tutoringSubject}
+              Sport: <span className="font-medium">{coachingOfferingLabel(student.coachingOfferings[0])}</span>
             </p>
           )}
-          {bookingData.serviceType === 'coach' && coachAvailable && (
-            <p className="text-xs text-neutral-light mt-1">
-              Sport:{' '}
-              {student.coachingSport === 'Other' && student.coachingSportOther
-                ? `${student.coachingSport} (${student.coachingSportOther})`
-                : student.coachingSport}
-            </p>
+          {bookingData.serviceType === 'coach' && coachAvailable && student.coachingOfferings.length > 1 && (
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-neutral-dark mb-1">Which sport?</label>
+              <select
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                value={coachOfferKey}
+                onChange={(e) => setCoachOfferKey(e.target.value)}
+              >
+                {student.coachingOfferings.map((o, i) => (
+                  <option key={`${offeringKeySport(o)}-${i}`} value={offeringKeySport(o)}>
+                    {coachingOfferingLabel(o)}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
         <div className="md:col-span-2">

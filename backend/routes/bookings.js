@@ -5,7 +5,8 @@ const { auth, requireStudentOrParent } = require('../middleware/auth');
 const { notifyBookingCreated, sendBookingMessageToStudent } = require('../services/slack');
 const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
-const { SERVICE_TYPES, TUTORING_SUBJECTS, COACHING_SPORTS } = require('../constants/serviceOfferings');
+const { SERVICE_TYPES } = require('../constants/serviceOfferings');
+const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
 const router = express.Router();
 
 // Create new booking
@@ -50,17 +51,21 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
     const serviceType =
       rawServiceType && SERVICE_TYPES.includes(rawServiceType) ? rawServiceType : 'babysitter';
 
+    let tutorSnap = null;
+    let coachSnap = null;
     if (serviceType === 'tutor') {
-      if (!student.tutoringSubject || !TUTORING_SUBJECTS.includes(student.tutoringSubject)) {
+      tutorSnap = resolveTutorBookingSnapshot(student, req.body);
+      if (tutorSnap.error) {
         return res.status(400).json({
-          error: 'This sitter has not set up tutoring on their profile. Choose babysitting or another sitter for tutoring.',
+          error: tutorSnap.error,
         });
       }
     }
     if (serviceType === 'coach') {
-      if (!student.coachingSport || !COACHING_SPORTS.includes(student.coachingSport)) {
+      coachSnap = resolveCoachBookingSnapshot(student, req.body);
+      if (coachSnap.error) {
         return res.status(400).json({
-          error: 'This sitter has not set up sports coaching on their profile. Choose babysitting or another sitter for coaching.',
+          error: coachSnap.error,
         });
       }
     }
@@ -81,16 +86,16 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       serviceType,
     };
 
-    if (serviceType === 'tutor') {
-      bookingPayload.tutoringSubject = student.tutoringSubject;
-      if (student.tutoringSubject === 'Other' && student.tutoringSubjectOther) {
-        bookingPayload.tutoringSubjectOther = student.tutoringSubjectOther;
+    if (serviceType === 'tutor' && tutorSnap) {
+      bookingPayload.tutoringSubject = tutorSnap.tutoringSubject;
+      if (tutorSnap.tutoringSubjectOther) {
+        bookingPayload.tutoringSubjectOther = tutorSnap.tutoringSubjectOther;
       }
     }
-    if (serviceType === 'coach') {
-      bookingPayload.coachingSport = student.coachingSport;
-      if (student.coachingSport === 'Other' && student.coachingSportOther) {
-        bookingPayload.coachingSportOther = student.coachingSportOther;
+    if (serviceType === 'coach' && coachSnap) {
+      bookingPayload.coachingSport = coachSnap.coachingSport;
+      if (coachSnap.coachingSportOther) {
+        bookingPayload.coachingSportOther = coachSnap.coachingSportOther;
       }
     }
 

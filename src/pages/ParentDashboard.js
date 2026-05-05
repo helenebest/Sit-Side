@@ -9,6 +9,16 @@ import { normalizeStudentForListing, studentsFromApiResponse } from '../utils/st
 import { SERVICE_TYPES } from '../constants/serviceOfferings';
 import { formatBookingServiceLine } from '../utils/bookingDisplay';
 import { getEffectiveHourlyRateForStudent } from '../utils/serviceRatesClient';
+import {
+  tutoringOfferingsFromUser,
+  coachingOfferingsFromUser,
+  tutoringOfferingLabel,
+  coachingOfferingLabel,
+  offeringKeySubject,
+  offeringKeySport,
+  parseSubjectOfferingKey,
+  parseSportOfferingKey,
+} from '../utils/studentOfferingsClient';
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
@@ -33,6 +43,8 @@ const ParentDashboard = () => {
     emergencyContact: '',
     meetupAddress: '',
     specialInstructions: '',
+    tutorOfferKey: '',
+    coachOfferKey: '',
   });
   const [parentBookSubmitting, setParentBookSubmitting] = useState(false);
   const [parentBookError, setParentBookError] = useState('');
@@ -181,6 +193,8 @@ const ParentDashboard = () => {
   };
 
   const handleBookStudent = (student) => {
+    const tOff = tutoringOfferingsFromUser(student);
+    const cOff = coachingOfferingsFromUser(student);
     setParentQuickBook({
       serviceType: 'babysitter',
       date: '',
@@ -190,6 +204,8 @@ const ParentDashboard = () => {
       emergencyContact: user?.phone || '',
       meetupAddress: '',
       specialInstructions: '',
+      tutorOfferKey: tOff[0] ? offeringKeySubject(tOff[0]) : '',
+      coachOfferKey: cOff[0] ? offeringKeySport(cOff[0]) : '',
     });
     setParentBookError('');
     setSelectedStudent(student);
@@ -230,6 +246,14 @@ const ParentDashboard = () => {
       const payload = {
         studentId: String(selectedStudent.id),
         serviceType: parentQuickBook.serviceType,
+        ...(parentQuickBook.serviceType === 'tutor' &&
+          parentQuickBook.tutorOfferKey && {
+            tutoringOffering: parseSubjectOfferingKey(parentQuickBook.tutorOfferKey),
+          }),
+        ...(parentQuickBook.serviceType === 'coach' &&
+          parentQuickBook.coachOfferKey && {
+            coachingOffering: parseSportOfferingKey(parentQuickBook.coachOfferKey),
+          }),
         date: parentQuickBook.date,
         startTime: parentQuickBook.startTime,
         endTime: parentQuickBook.endTime,
@@ -563,24 +587,19 @@ const ParentDashboard = () => {
 
                     <p className="text-neutral-light text-sm mb-4">{student.bio}</p>
 
-                    {(student.tutoringSubject || student.coachingSport) && (
+                    {(tutoringOfferingsFromUser(student).length > 0 ||
+                      coachingOfferingsFromUser(student).length > 0) && (
                       <div className="flex flex-wrap gap-2 mb-4">
-                        {student.tutoringSubject ? (
-                          <Badge variant="primary">
-                            Tutoring:{' '}
-                            {student.tutoringSubject === 'Other' && student.tutoringSubjectOther
-                              ? `${student.tutoringSubject} (${student.tutoringSubjectOther})`
-                              : student.tutoringSubject}
+                        {tutoringOfferingsFromUser(student).map((o, i) => (
+                          <Badge key={`t-${i}`} variant="primary">
+                            Tutoring: {tutoringOfferingLabel(o)}
                           </Badge>
-                        ) : null}
-                        {student.coachingSport ? (
-                          <Badge variant="secondary">
-                            Coaching:{' '}
-                            {student.coachingSport === 'Other' && student.coachingSportOther
-                              ? `${student.coachingSport} (${student.coachingSportOther})`
-                              : student.coachingSport}
+                        ))}
+                        {coachingOfferingsFromUser(student).map((o, i) => (
+                          <Badge key={`c-${i}`} variant="secondary">
+                            Coaching: {coachingOfferingLabel(o)}
                           </Badge>
-                        ) : null}
+                        ))}
                       </div>
                     )}
 
@@ -743,38 +762,88 @@ const ParentDashboard = () => {
                 <select
                   name="serviceType"
                   value={parentQuickBook.serviceType}
-                  onChange={handleParentQuickBookChange}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const tOff = tutoringOfferingsFromUser(selectedStudent);
+                    const cOff = coachingOfferingsFromUser(selectedStudent);
+                    setParentQuickBook((prev) => {
+                      const next = { ...prev, serviceType: v };
+                      if (v === 'tutor' && tOff.length)
+                        next.tutorOfferKey = offeringKeySubject(tOff[0]);
+                      if (v === 'coach' && cOff.length) next.coachOfferKey = offeringKeySport(cOff[0]);
+                      return next;
+                    });
+                  }}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   {SERVICE_TYPES.map((opt) => {
+                    const tOff = tutoringOfferingsFromUser(selectedStudent);
+                    const cOff = coachingOfferingsFromUser(selectedStudent);
                     const disabled =
-                      (opt.value === 'tutor' && !selectedStudent.tutoringSubject) ||
-                      (opt.value === 'coach' && !selectedStudent.coachingSport);
+                      (opt.value === 'tutor' && !tOff.length) || (opt.value === 'coach' && !cOff.length);
                     return (
                       <option key={opt.value} value={opt.value} disabled={disabled}>
                         {opt.label}
-                        {opt.value === 'tutor' && !selectedStudent.tutoringSubject ? ' (not offered)' : ''}
-                        {opt.value === 'coach' && !selectedStudent.coachingSport ? ' (not offered)' : ''}
+                        {opt.value === 'tutor' && !tOff.length ? ' (not offered)' : ''}
+                        {opt.value === 'coach' && !cOff.length ? ' (not offered)' : ''}
                       </option>
                     );
                   })}
                 </select>
-                {parentQuickBook.serviceType === 'tutor' && selectedStudent.tutoringSubject && (
-                  <p className="mt-1 text-xs text-neutral-light">
-                    Subject:{' '}
-                    {selectedStudent.tutoringSubject === 'Other' && selectedStudent.tutoringSubjectOther
-                      ? `${selectedStudent.tutoringSubject} (${selectedStudent.tutoringSubjectOther})`
-                      : selectedStudent.tutoringSubject}
-                  </p>
-                )}
-                {parentQuickBook.serviceType === 'coach' && selectedStudent.coachingSport && (
-                  <p className="mt-1 text-xs text-neutral-light">
-                    Sport:{' '}
-                    {selectedStudent.coachingSport === 'Other' && selectedStudent.coachingSportOther
-                      ? `${selectedStudent.coachingSport} (${selectedStudent.coachingSportOther})`
-                      : selectedStudent.coachingSport}
-                  </p>
-                )}
+                {parentQuickBook.serviceType === 'tutor' &&
+                  tutoringOfferingsFromUser(selectedStudent).length === 1 && (
+                    <p className="mt-1 text-xs text-neutral-light">
+                      Topic:{' '}
+                      <span className="font-medium text-neutral-dark">
+                        {tutoringOfferingLabel(tutoringOfferingsFromUser(selectedStudent)[0])}
+                      </span>
+                    </p>
+                  )}
+                {parentQuickBook.serviceType === 'tutor' &&
+                  tutoringOfferingsFromUser(selectedStudent).length > 1 && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-neutral-dark mb-1">Which topic?</label>
+                      <select
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={parentQuickBook.tutorOfferKey}
+                        name="tutorOfferKey"
+                        onChange={handleParentQuickBookChange}
+                      >
+                        {tutoringOfferingsFromUser(selectedStudent).map((o, i) => (
+                          <option key={`t-${i}`} value={offeringKeySubject(o)}>
+                            {tutoringOfferingLabel(o)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                {parentQuickBook.serviceType === 'coach' &&
+                  coachingOfferingsFromUser(selectedStudent).length === 1 && (
+                    <p className="mt-1 text-xs text-neutral-light">
+                      Sport:{' '}
+                      <span className="font-medium text-neutral-dark">
+                        {coachingOfferingLabel(coachingOfferingsFromUser(selectedStudent)[0])}
+                      </span>
+                    </p>
+                  )}
+                {parentQuickBook.serviceType === 'coach' &&
+                  coachingOfferingsFromUser(selectedStudent).length > 1 && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-neutral-dark mb-1">Which sport?</label>
+                      <select
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={parentQuickBook.coachOfferKey}
+                        name="coachOfferKey"
+                        onChange={handleParentQuickBookChange}
+                      >
+                        {coachingOfferingsFromUser(selectedStudent).map((o, i) => (
+                          <option key={`c-${i}`} value={offeringKeySport(o)}>
+                            {coachingOfferingLabel(o)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>

@@ -7,6 +7,16 @@ import Badge from '../components/ui/Badge';
 import MonthCalendarGrid from '../components/MonthCalendarGrid';
 import { useAuth } from '../contexts/AuthContext';
 import { SERVICE_TYPES } from '../constants/serviceOfferings';
+import {
+  tutoringOfferingsFromUser,
+  coachingOfferingsFromUser,
+  tutoringOfferingLabel,
+  coachingOfferingLabel,
+  offeringKeySubject,
+  offeringKeySport,
+  parseSubjectOfferingKey,
+  parseSportOfferingKey,
+} from '../utils/studentOfferingsClient';
 
 const StudentProfile = () => {
   const { id } = useParams();
@@ -22,6 +32,8 @@ const StudentProfile = () => {
     meetupAddress: '',
     specialInstructions: '',
     emergencyContact: '',
+    tutorOfferKey: '',
+    coachOfferKey: '',
   });
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [bookingSubmitError, setBookingSubmitError] = useState('');
@@ -116,6 +128,8 @@ const StudentProfile = () => {
   };
 
   const handleBookNow = () => {
+    const tOff = student ? tutoringOfferingsFromUser(student) : [];
+    const cOff = student ? coachingOfferingsFromUser(student) : [];
     setQuickBookingData({
       serviceType: 'babysitter',
       date: '',
@@ -125,6 +139,8 @@ const StudentProfile = () => {
       meetupAddress: '',
       specialInstructions: '',
       emergencyContact: user?.phone || '',
+      tutorOfferKey: tOff[0] ? offeringKeySubject(tOff[0]) : '',
+      coachOfferKey: cOff[0] ? offeringKeySport(cOff[0]) : '',
     });
     setBookingSubmitError('');
     setBookingSubmitSuccess('');
@@ -160,6 +176,14 @@ const StudentProfile = () => {
       const payload = {
         studentId: String(student._id || student.id),
         serviceType: quickBookingData.serviceType,
+        ...(quickBookingData.serviceType === 'tutor' &&
+          quickBookingData.tutorOfferKey && {
+            tutoringOffering: parseSubjectOfferingKey(quickBookingData.tutorOfferKey),
+          }),
+        ...(quickBookingData.serviceType === 'coach' &&
+          quickBookingData.coachOfferKey && {
+            coachingOffering: parseSportOfferingKey(quickBookingData.coachOfferKey),
+          }),
         date: quickBookingData.date,
         startTime: quickBookingData.startTime,
         endTime: quickBookingData.endTime,
@@ -314,25 +338,24 @@ const StudentProfile = () => {
               <p className="text-neutral-light leading-relaxed">{student.bio}</p>
             </div>
 
-            {(student.tutoringSubject || student.coachingSport) && (
+            {(tutoringOfferingsFromUser(student).length > 0 ||
+              coachingOfferingsFromUser(student).length > 0) && (
               <div className="border-t border-gray-200 pt-6">
                 <h2 className="text-xl font-semibold text-neutral-dark mb-4">Tutoring & coaching</h2>
-                {student.tutoringSubject ? (
-                  <p className="text-neutral-light mb-2">
-                    <span className="font-medium text-neutral-dark">Tutoring: </span>
-                    {student.tutoringSubject === 'Other' && student.tutoringSubjectOther
-                      ? `${student.tutoringSubject} (${student.tutoringSubjectOther})`
-                      : student.tutoringSubject}
-                  </p>
-                ) : null}
-                {student.coachingSport ? (
-                  <p className="text-neutral-light">
-                    <span className="font-medium text-neutral-dark">Coaching: </span>
-                    {student.coachingSport === 'Other' && student.coachingSportOther
-                      ? `${student.coachingSport} (${student.coachingSportOther})`
-                      : student.coachingSport}
-                  </p>
-                ) : null}
+                <ul className="space-y-1 text-neutral-light">
+                  {tutoringOfferingsFromUser(student).map((o, i) => (
+                    <li key={`t-${i}`}>
+                      <span className="font-medium text-neutral-dark">Tutoring: </span>
+                      {tutoringOfferingLabel(o)}
+                    </li>
+                  ))}
+                  {coachingOfferingsFromUser(student).map((o, i) => (
+                    <li key={`c-${i}`}>
+                      <span className="font-medium text-neutral-dark">Coaching: </span>
+                      {coachingOfferingLabel(o)}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -573,7 +596,7 @@ const StudentProfile = () => {
       )}
 
       {/* Quick Booking Dialog */}
-      {bookingDialogOpen && (
+      {bookingDialogOpen && student && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Quick Book {student.name}</h3>
@@ -583,22 +606,83 @@ const StudentProfile = () => {
                 <select
                   name="serviceType"
                   value={quickBookingData.serviceType}
-                  onChange={handleBookingFieldChange}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const tOff = tutoringOfferingsFromUser(student);
+                    const cOff = coachingOfferingsFromUser(student);
+                    setQuickBookingData((prev) => {
+                      const next = { ...prev, serviceType: v };
+                      if (v === 'tutor' && tOff.length) next.tutorOfferKey = offeringKeySubject(tOff[0]);
+                      if (v === 'coach' && cOff.length) next.coachOfferKey = offeringKeySport(cOff[0]);
+                      return next;
+                    });
+                  }}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   {SERVICE_TYPES.map((opt) => {
+                    const tOff = tutoringOfferingsFromUser(student);
+                    const cOff = coachingOfferingsFromUser(student);
                     const disabled =
-                      (opt.value === 'tutor' && !student.tutoringSubject) ||
-                      (opt.value === 'coach' && !student.coachingSport);
+                      (opt.value === 'tutor' && !tOff.length) || (opt.value === 'coach' && !cOff.length);
                     return (
                       <option key={opt.value} value={opt.value} disabled={disabled}>
                         {opt.label}
-                        {opt.value === 'tutor' && !student.tutoringSubject ? ' (not offered)' : ''}
-                        {opt.value === 'coach' && !student.coachingSport ? ' (not offered)' : ''}
+                        {opt.value === 'tutor' && !tOff.length ? ' (not offered)' : ''}
+                        {opt.value === 'coach' && !cOff.length ? ' (not offered)' : ''}
                       </option>
                     );
                   })}
                 </select>
+                {quickBookingData.serviceType === 'tutor' && tutoringOfferingsFromUser(student).length === 1 && (
+                  <p className="mt-1 text-xs text-neutral-light">
+                    Topic:{' '}
+                    <span className="font-medium text-neutral-dark">
+                      {tutoringOfferingLabel(tutoringOfferingsFromUser(student)[0])}
+                    </span>
+                  </p>
+                )}
+                {quickBookingData.serviceType === 'tutor' && tutoringOfferingsFromUser(student).length > 1 && (
+                  <div className="mt-2">
+                    <label className="block text-xs font-medium text-neutral-dark mb-1">Which topic?</label>
+                    <select
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      name="tutorOfferKey"
+                      value={quickBookingData.tutorOfferKey}
+                      onChange={handleBookingFieldChange}
+                    >
+                      {tutoringOfferingsFromUser(student).map((o, i) => (
+                        <option key={`t-${i}`} value={offeringKeySubject(o)}>
+                          {tutoringOfferingLabel(o)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {quickBookingData.serviceType === 'coach' && coachingOfferingsFromUser(student).length === 1 && (
+                  <p className="mt-1 text-xs text-neutral-light">
+                    Sport:{' '}
+                    <span className="font-medium text-neutral-dark">
+                      {coachingOfferingLabel(coachingOfferingsFromUser(student)[0])}
+                    </span>
+                  </p>
+                )}
+                {quickBookingData.serviceType === 'coach' && coachingOfferingsFromUser(student).length > 1 && (
+                  <div className="mt-2">
+                    <label className="block text-xs font-medium text-neutral-dark mb-1">Which sport?</label>
+                    <select
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      name="coachOfferKey"
+                      value={quickBookingData.coachOfferKey}
+                      onChange={handleBookingFieldChange}
+                    >
+                      {coachingOfferingsFromUser(student).map((o, i) => (
+                        <option key={`c-${i}`} value={offeringKeySport(o)}>
+                          {coachingOfferingLabel(o)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>

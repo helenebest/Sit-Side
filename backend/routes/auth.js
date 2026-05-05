@@ -4,7 +4,14 @@ const User = require('../models/User');
 const { getJwtSecret } = require('../lib/jwtSecret');
 const { auth } = require('../middleware/auth');
 const { notifyAdminPendingUserApproval } = require('../services/slack');
-const { TUTORING_SUBJECTS, COACHING_SPORTS } = require('../constants/serviceOfferings');
+const {
+  normalizedTutoringOfferings,
+  normalizedCoachingOfferings,
+  sanitizedTutoringOfferingsInput,
+  sanitizedCoachingOfferingsInput,
+  validateTutoringOfferings,
+  validateCoachingOfferings,
+} = require('../lib/studentOfferings');
 const router = express.Router();
 
 function studentProfileShape(user) {
@@ -22,6 +29,8 @@ function studentProfileShape(user) {
     useSameRateForAllServices: user.useSameRateForAllServices,
     hourlyRateTutor: user.hourlyRateTutor,
     hourlyRateCoach: user.hourlyRateCoach,
+    tutoringOfferings: normalizedTutoringOfferings(user),
+    coachingOfferings: normalizedCoachingOfferings(user),
     tutoringSubject: user.tutoringSubject,
     tutoringSubjectOther: user.tutoringSubjectOther,
     coachingSport: user.coachingSport,
@@ -279,7 +288,7 @@ router.put('/profile', auth, async (req, res) => {
       'experience', 'certifications', 'location', 'availability',
       'emergencyContact', 'profileImage', 'slackUserId',
       'useSameRateForAllServices', 'hourlyRateTutor', 'hourlyRateCoach',
-      'tutoringSubject', 'tutoringSubjectOther', 'coachingSport', 'coachingSportOther',
+      'tutoringOfferings', 'coachingOfferings',
     ];
 
     const updates = {};
@@ -292,19 +301,21 @@ router.put('/profile', auth, async (req, res) => {
     if (req.user.userType === 'student') {
       delete updates.hourlyRateTutor;
       delete updates.hourlyRateCoach;
-      if (updates.tutoringSubject !== undefined && updates.tutoringSubject !== null) {
-        const v = String(updates.tutoringSubject).trim();
-        if (v && !TUTORING_SUBJECTS.includes(v)) {
-          return res.status(400).json({ error: 'Invalid tutoring subject' });
-        }
-        updates.tutoringSubject = v || '';
+      if (req.body.tutoringOfferings !== undefined) {
+        const sanitized = sanitizedTutoringOfferingsInput(req.body.tutoringOfferings);
+        const err = validateTutoringOfferings(sanitized);
+        if (err) return res.status(400).json({ error: err });
+        updates.tutoringOfferings = sanitized;
+        updates.tutoringSubject = '';
+        updates.tutoringSubjectOther = '';
       }
-      if (updates.coachingSport !== undefined && updates.coachingSport !== null) {
-        const v = String(updates.coachingSport).trim();
-        if (v && !COACHING_SPORTS.includes(v)) {
-          return res.status(400).json({ error: 'Invalid coaching sport' });
-        }
-        updates.coachingSport = v || '';
+      if (req.body.coachingOfferings !== undefined) {
+        const sanitized = sanitizedCoachingOfferingsInput(req.body.coachingOfferings);
+        const err = validateCoachingOfferings(sanitized);
+        if (err) return res.status(400).json({ error: err });
+        updates.coachingOfferings = sanitized;
+        updates.coachingSport = '';
+        updates.coachingSportOther = '';
       }
       if (updates.useSameRateForAllServices !== undefined) {
         updates.useSameRateForAllServices = Boolean(updates.useSameRateForAllServices);
@@ -326,10 +337,8 @@ router.put('/profile', auth, async (req, res) => {
       delete updates.useSameRateForAllServices;
       delete updates.hourlyRateTutor;
       delete updates.hourlyRateCoach;
-      delete updates.tutoringSubject;
-      delete updates.tutoringSubjectOther;
-      delete updates.coachingSport;
-      delete updates.coachingSportOther;
+      delete updates.tutoringOfferings;
+      delete updates.coachingOfferings;
     }
 
     let user = await User.findByIdAndUpdate(
