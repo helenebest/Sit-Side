@@ -84,13 +84,13 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
     notifyBookingCreated(booking, parentMessage).catch((err) => {
       console.error('Slack notifyBookingCreated error:', err);
     });
-    sendBookingConfirmationEmails(booking).catch((err) => {
-      console.error('Email sendBookingConfirmationEmails error:', err);
-    });
+
+    const emailNotification = await sendBookingConfirmationEmails(booking);
 
     res.status(201).json({
       booking,
-      message: 'Booking request created successfully'
+      message: 'Booking request created successfully',
+      emailNotification,
     });
 
   } catch (error) {

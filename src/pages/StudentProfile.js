@@ -175,7 +175,16 @@ const StudentProfile = () => {
         throw new Error(result.error || 'Unable to create booking request.');
       }
 
-      setBookingSubmitSuccess('Booking request sent successfully.');
+      const emailNote = result.data?.emailNotification;
+      if (emailNote?.status === 'sent') {
+        setBookingSubmitSuccess(
+          'Booking request sent. You should receive a SitSide confirmation email shortly (check spam).',
+        );
+      } else if (emailNote?.hint) {
+        setBookingSubmitSuccess(`Booking request saved. ${emailNote.hint}`);
+      } else {
+        setBookingSubmitSuccess('Booking request sent successfully.');
+      }
       setBookingDialogOpen(false);
       setStudentBookingsRefreshKey((k) => k + 1);
     } catch (submitError) {

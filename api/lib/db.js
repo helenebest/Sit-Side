@@ -4,7 +4,7 @@ const mongoose = require(path.join(__dirname, '..', '..', 'node_modules', 'mongo
 
 mongoose.set('bufferCommands', false);
 
-const GLOBAL_KEY = '__windwardMongoConnectPromise';
+const GLOBAL_KEY = '__sitSideMongoConnectPromise';
 
 /** Remove mistaken Atlas template brackets. */
 function stripAngleBrackets(value) {
