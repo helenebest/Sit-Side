@@ -72,9 +72,25 @@ const buildBookingConfirmationBody = (booking) => {
     ? `${booking.parent.firstName || ''} ${booking.parent.lastName || ''}`.trim()
     : 'the parent';
 
+  let serviceLine = 'Service: Babysitting';
+  if (booking?.serviceType === 'tutor') {
+    let detail = booking.tutoringSubject || '';
+    if (detail === 'Other' && booking.tutoringSubjectOther) {
+      detail = `Other (${booking.tutoringSubjectOther})`;
+    }
+    serviceLine = detail ? `Service: Tutoring (${detail})` : 'Service: Tutoring';
+  } else if (booking?.serviceType === 'coach') {
+    let detail = booking.coachingSport || '';
+    if (detail === 'Other' && booking.coachingSportOther) {
+      detail = `Other (${booking.coachingSportOther})`;
+    }
+    serviceLine = detail ? `Service: Coaching (${detail})` : 'Service: Coaching';
+  }
+
   const lines = [
     'Your booking request has been created successfully.',
     '',
+    serviceLine,
     `Date: ${formatBookingDate(booking?.date)}`,
     `Time: ${booking?.startTime || '--'} - ${booking?.endTime || '--'}`,
     `Student: ${studentName || 'Unknown'}`,
