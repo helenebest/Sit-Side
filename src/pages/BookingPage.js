@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 const BookingPage = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
-  const { getStudentProfile, createBooking } = useAuth();
+  const { user, getStudentProfile, createBooking } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,6 +19,7 @@ const BookingPage = () => {
     endTime: '',
     numberOfChildren: 1,
     childrenAges: '',
+    meetupAddress: '',
     specialInstructions: '',
     emergencyContact: '',
     paymentMethod: 'card',
@@ -76,6 +77,14 @@ const BookingPage = () => {
     loadStudent();
   }, [studentId, getStudentProfile]);
 
+  useEffect(() => {
+    if (!user?.phone) return;
+    setBookingData((prev) => ({
+      ...prev,
+      emergencyContact: prev.emergencyContact.trim() ? prev.emergencyContact : user.phone,
+    }));
+  }, [user?.phone]);
+
   // If still loading or error, show loading/error state
   if (loading) {
     return (
@@ -115,6 +124,15 @@ const BookingPage = () => {
     });
   };
 
+  const buildSpecialInstructionsPayload = (meetupAddress, specialInstructions) => {
+    const m = (meetupAddress || '').trim();
+    const s = (specialInstructions || '').trim();
+    const parts = [];
+    if (m) parts.push(`Meet-up address: ${m}`);
+    if (s) parts.push(s);
+    return parts.join('\n\n');
+  };
+
   const calculateTotal = () => {
     if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
     
@@ -137,15 +155,21 @@ const BookingPage = () => {
         date: bookingData.date,
         startTime: bookingData.startTime,
         endTime: bookingData.endTime,
-        numberOfChildren: bookingData.numberOfChildren,
+        numberOfChildren: Math.min(
+          10,
+          Math.max(1, parseInt(bookingData.numberOfChildren, 10) || 1),
+        ),
         childrenAges: bookingData.childrenAges
           ? bookingData.childrenAges
               .split(',')
               .map((age) => parseInt(age.trim(), 10))
               .filter((n) => !Number.isNaN(n))
           : [],
-        specialInstructions: bookingData.specialInstructions,
-        emergencyContact: bookingData.emergencyContact,
+        specialInstructions: buildSpecialInstructionsPayload(
+          bookingData.meetupAddress,
+          bookingData.specialInstructions,
+        ),
+        emergencyContact: bookingData.emergencyContact.trim(),
         parentMessage: bookingData.parentMessage || '',
       };
 
@@ -155,8 +179,12 @@ const BookingPage = () => {
         throw new Error(result.error || 'Failed to create booking');
       }
 
-      // On success, navigate back to parent dashboard or bookings page
-      navigate('/parent');
+      navigate('/parent', {
+        state: {
+          bookingEmailNotification: result.data?.emailNotification,
+          bookingActiveTab: 1,
+        },
+      });
     } catch (error) {
       setSubmitError(error.message || 'Something went wrong while creating the booking.');
     } finally {
@@ -228,13 +256,27 @@ const BookingPage = () => {
           <p className="text-xs text-neutral-light mt-1">Separate ages with commas</p>
         </div>
         <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-neutral-dark mb-2">Meet-up address</label>
+          <input
+            type="text"
+            name="meetupAddress"
+            value={bookingData.meetupAddress}
+            onChange={handleChange}
+            placeholder="Street address or where the sitter should meet you"
+            className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="text-xs text-neutral-light mt-1">
+            Include enough detail so your sitter knows where to go (building, gate code, etc.).
+          </p>
+        </div>
+        <div className="md:col-span-2">
           <label className="block text-sm font-medium text-neutral-dark mb-2">Special Instructions</label>
           <textarea
             name="specialInstructions"
             value={bookingData.specialInstructions}
             onChange={handleChange}
             rows={4}
-            placeholder="Any allergies, special needs, bedtime routines, or other important information..."
+            placeholder="Allergies, routines, parking, pets, or other notes..."
             className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>

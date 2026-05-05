@@ -40,11 +40,16 @@ const getTransporter = () => {
     return null;
   }
 
+  const port = config.port;
   return nodemailer.createTransport({
     host: config.host,
-    port: config.port,
+    port,
     secure: config.secure,
     auth: config.auth,
+    requireTLS: port === 587,
+    tls: { minVersion: 'TLSv1.2' },
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
   });
 };
 
@@ -87,15 +92,28 @@ const buildBookingConfirmationBody = (booking) => {
     lines.push(`Estimated Total: $${booking.totalAmount}`);
   }
 
-  lines.push('', 'Thank you for using Windward Connect.');
+  lines.push('', 'Thank you for using SitSide.');
   return lines.join('\n');
+};
+
+const EMAIL_HINTS = {
+  smtp_not_configured:
+    'Confirmation email was not sent: SMTP is not configured on the API server. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and EMAIL_FROM (e.g. in Vercel → Environment Variables), then redeploy.',
+  no_recipient_emails:
+    'Confirmation email was not sent: the parent or student record has no email address on file.',
+  smtp_send_error:
+    'Confirmation email failed to send. Typical causes: wrong SMTP password, EMAIL_FROM not verified in Amazon SES (or your provider), or SES sandbox blocking unverified recipient addresses. Check your API host logs for the exact SMTP error.',
 };
 
 const sendBookingConfirmationEmails = async (booking) => {
   const transporter = getTransporter();
   const config = getEmailConfig();
   if (!transporter || !config) {
-    return { sent: false, skipped: true };
+    return {
+      status: 'skipped',
+      reason: 'smtp_not_configured',
+      hint: EMAIL_HINTS.smtp_not_configured,
+    };
   }
 
   const recipients = [booking?.parent?.email, booking?.student?.email]
@@ -104,24 +122,44 @@ const sendBookingConfirmationEmails = async (booking) => {
 
   const uniqueRecipients = [...new Set(recipients)];
   if (uniqueRecipients.length === 0) {
-    return { sent: false, skipped: true };
+    return {
+      status: 'skipped',
+      reason: 'no_recipient_emails',
+      hint: EMAIL_HINTS.no_recipient_emails,
+    };
   }
 
-  const subject = 'Booking confirmation - Windward Connect';
+  const subject = 'Booking confirmation — SitSide';
   const text = buildBookingConfirmationBody(booking);
 
-  await Promise.all(
-    uniqueRecipients.map((to) =>
-      transporter.sendMail({
-        from: config.from,
-        to,
-        subject,
-        text,
-      })
-    )
-  );
-
-  return { sent: true, recipients: uniqueRecipients };
+  try {
+    await Promise.all(
+      uniqueRecipients.map((to) =>
+        transporter.sendMail({
+          from: config.from,
+          to,
+          subject,
+          text,
+        })
+      )
+    );
+    return {
+      status: 'sent',
+      recipientCount: uniqueRecipients.length,
+      hint: null,
+    };
+  } catch (err) {
+    console.error('sendBookingConfirmationEmails SMTP error:', err?.message || err);
+    const out = {
+      status: 'failed',
+      reason: 'smtp_send_error',
+      hint: EMAIL_HINTS.smtp_send_error,
+    };
+    if (process.env.NODE_ENV !== 'production') {
+      out.detail = err?.message || String(err);
+    }
+    return out;
+  }
 };
 
 module.exports = {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
@@ -9,6 +9,7 @@ import { normalizeStudentForListing, studentsFromApiResponse } from '../utils/st
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, getStudents, getMyBookings, createBooking, sendBookingMessage } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [searchFilters, setSearchFilters] = useState({
@@ -44,6 +45,30 @@ const ParentDashboard = () => {
   const [messageSubmitting, setMessageSubmitting] = useState(false);
   const [messageError, setMessageError] = useState('');
   const [messageSuccess, setMessageSuccess] = useState('');
+
+  const [bookingEmailBanner, setBookingEmailBanner] = useState('');
+
+  useEffect(() => {
+    const n = location.state?.bookingEmailNotification;
+    const tab = location.state?.bookingActiveTab;
+    if (typeof tab === 'number' && tab >= 0 && tab <= 2) {
+      setActiveTab(tab);
+    }
+    if (!n) {
+      if (typeof tab === 'number' && tab >= 0 && tab <= 2) {
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+      return;
+    }
+    if (n.status === 'sent') {
+      setBookingEmailBanner(
+        'SitSide confirmation email was sent to you and your sitter (check spam folders).',
+      );
+    } else if (n.hint) {
+      setBookingEmailBanner(n.hint);
+    }
+    navigate(location.pathname + location.search, { replace: true, state: {} });
+  }, [location.state, location.pathname, location.search, navigate]);
 
   const handleTabChange = (newValue) => {
     setActiveTab(newValue);
@@ -122,6 +147,15 @@ const ParentDashboard = () => {
 
       setBookingDialogOpen(false);
       setActiveTab(1);
+      const emailNote = result.data?.emailNotification;
+      if (emailNote?.status === 'sent') {
+        setBookingEmailBanner(
+          'SitSide confirmation email was sent to you and your sitter (check spam folders).',
+        );
+      } else if (emailNote?.hint) {
+        setBookingEmailBanner(emailNote.hint);
+      }
+
       const refresh = await getMyBookings();
       if (refresh.success) {
         setBookings(refresh.data.bookings || []);
@@ -281,6 +315,19 @@ const ParentDashboard = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-4xl font-bold text-neutral-dark mb-8">Find Babysitters</h1>
+
+      {bookingEmailBanner && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex justify-between gap-4 items-start">
+          <span>{bookingEmailBanner}</span>
+          <button
+            type="button"
+            className="shrink-0 text-amber-800 underline text-xs font-medium"
+            onClick={() => setBookingEmailBanner('')}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <Card className="p-6 mb-8">
