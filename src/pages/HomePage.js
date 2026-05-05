@@ -28,7 +28,9 @@ const HomePage = () => {
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl font-extrabold text-neutral-dark leading-tight">Reliable childcare from responsible students</h1>
-              <p className="mt-4 text-neutral-light text-lg">Sit Side connects families with trusted high school sitters. Flexible schedules, transparent rates, and simple booking.</p>
+              <p className="mt-4 text-neutral-light text-lg">
+                Sit Side connects families with trusted high school sitters for babysitting—and many students also offer tutoring (languages, math, science, and more) and sports coaching. Flexible schedules, transparent rates, and simple booking.
+              </p>
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
                 <PrimaryButton onClick={() => navigate('/signup?type=parent')}>Find a Sitter</PrimaryButton>
                 <OutlineButton onClick={() => navigate('/signup?type=student')}>Become a Sitter</OutlineButton>
@@ -61,7 +63,7 @@ const HomePage = () => {
             <Card className="p-6">
               <h3 className="text-xl font-semibold text-neutral-dark">For Parents</h3>
               <ul className="mt-4 space-y-2 text-neutral-light">
-                <li>• Browse local student sitters</li>
+                <li>• Browse local students for babysitting, tutoring, or coaching</li>
                 <li>• Check availability, rates, and reviews</li>
                 <li>• Book and pay securely</li>
               </ul>
@@ -69,7 +71,7 @@ const HomePage = () => {
             <Card className="p-6">
               <h3 className="text-xl font-semibold text-neutral-dark">For Students</h3>
               <ul className="mt-4 space-y-2 text-neutral-light">
-                <li>• Create a profile and set your schedule</li>
+                <li>• Create a profile—babysitting plus optional tutoring subjects or sports</li>
                 <li>• Get matched with nearby families</li>
                 <li>• Earn safely with flexible hours</li>
               </ul>

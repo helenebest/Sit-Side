@@ -48,8 +48,15 @@ const notifyBookingCreated = async (booking, parentMessage) => {
   const student = booking.student;
   const parent = booking.parent;
 
+  const serviceLabel =
+    booking.serviceType === 'tutor'
+      ? 'Tutoring'
+      : booking.serviceType === 'coach'
+        ? 'Coaching'
+        : 'Babysitting';
+
   const baseLines = [
-    `📅 *New booking request*`,
+    `📅 *New booking request* (${serviceLabel})`,
     ``,
     `*Student:* ${student?.firstName || ''} ${student?.lastName || ''}`.trim(),
     `*Parent:* ${parent?.firstName || ''} ${parent?.lastName || ''}`.trim(),

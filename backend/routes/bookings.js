@@ -4,6 +4,8 @@ const User = require('../models/User');
 const { auth, requireStudentOrParent } = require('../middleware/auth');
 const { notifyBookingCreated, sendBookingMessageToStudent } = require('../services/slack');
 const { sendBookingConfirmationEmails } = require('../services/email');
+const { resolveHourlyRateForService } = require('../lib/serviceRates');
+const { SERVICE_TYPES, TUTORING_SUBJECTS, COACHING_SPORTS } = require('../constants/serviceOfferings');
 const router = express.Router();
 
 // Create new booking
@@ -19,6 +21,7 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       specialInstructions,
       emergencyContact,
       parentMessage,
+      serviceType: rawServiceType,
     } = req.body;
 
     // Validate required fields
@@ -44,13 +47,27 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const hourlyRate =
-      typeof student.hourlyRate === 'number' && Number.isFinite(student.hourlyRate)
-        ? student.hourlyRate
-        : 15;
+    const serviceType =
+      rawServiceType && SERVICE_TYPES.includes(rawServiceType) ? rawServiceType : 'babysitter';
 
-    // Create booking
-    const booking = new Booking({
+    if (serviceType === 'tutor') {
+      if (!student.tutoringSubject || !TUTORING_SUBJECTS.includes(student.tutoringSubject)) {
+        return res.status(400).json({
+          error: 'This sitter has not set up tutoring on their profile. Choose babysitting or another sitter for tutoring.',
+        });
+      }
+    }
+    if (serviceType === 'coach') {
+      if (!student.coachingSport || !COACHING_SPORTS.includes(student.coachingSport)) {
+        return res.status(400).json({
+          error: 'This sitter has not set up sports coaching on their profile. Choose babysitting or another sitter for coaching.',
+        });
+      }
+    }
+
+    const hourlyRate = resolveHourlyRateForService(student, serviceType);
+
+    const bookingPayload = {
       student: studentId,
       parent: req.user._id,
       date: new Date(date),
@@ -61,7 +78,24 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       specialInstructions: specialInstructions || '',
       emergencyContact,
       hourlyRate,
-    });
+      serviceType,
+    };
+
+    if (serviceType === 'tutor') {
+      bookingPayload.tutoringSubject = student.tutoringSubject;
+      if (student.tutoringSubject === 'Other' && student.tutoringSubjectOther) {
+        bookingPayload.tutoringSubjectOther = student.tutoringSubjectOther;
+      }
+    }
+    if (serviceType === 'coach') {
+      bookingPayload.coachingSport = student.coachingSport;
+      if (student.coachingSport === 'Other' && student.coachingSportOther) {
+        bookingPayload.coachingSportOther = student.coachingSportOther;
+      }
+    }
+
+    // Create booking
+    const booking = new Booking(bookingPayload);
 
     // If parent included an initial message, store it in the conversation
     if (parentMessage && parentMessage.trim()) {

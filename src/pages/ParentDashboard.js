@@ -6,6 +6,9 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 import { normalizeStudentForListing, studentsFromApiResponse } from '../utils/studentDisplay';
+import { SERVICE_TYPES } from '../constants/serviceOfferings';
+import { formatBookingServiceLine } from '../utils/bookingDisplay';
+import { getEffectiveHourlyRateForStudent } from '../utils/serviceRatesClient';
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
@@ -22,6 +25,7 @@ const ParentDashboard = () => {
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [parentQuickBook, setParentQuickBook] = useState({
+    serviceType: 'babysitter',
     date: '',
     startTime: '',
     endTime: '',
@@ -178,6 +182,7 @@ const ParentDashboard = () => {
 
   const handleBookStudent = (student) => {
     setParentQuickBook({
+      serviceType: 'babysitter',
       date: '',
       startTime: '',
       endTime: '',
@@ -224,6 +229,7 @@ const ParentDashboard = () => {
     try {
       const payload = {
         studentId: String(selectedStudent.id),
+        serviceType: parentQuickBook.serviceType,
         date: parentQuickBook.date,
         startTime: parentQuickBook.startTime,
         endTime: parentQuickBook.endTime,
@@ -520,7 +526,7 @@ const ParentDashboard = () => {
             <div>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-neutral-dark">
-                  Available Babysitters ({students.length})
+                  Available Sitters & tutors ({students.length})
                 </h3>
               </div>
               {studentsError && (
@@ -530,12 +536,12 @@ const ParentDashboard = () => {
               )}
               {studentsLoading && (
                 <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                  Loading babysitters…
+                  Loading profiles…
                 </div>
               )}
               {!studentsLoading && students.length === 0 && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-6 text-center text-blue-800">
-                  No babysitters yet. Invite students to complete their profiles!
+                  No student profiles yet. Invite students to complete their profiles!
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -556,6 +562,27 @@ const ParentDashboard = () => {
                     </div>
 
                     <p className="text-neutral-light text-sm mb-4">{student.bio}</p>
+
+                    {(student.tutoringSubject || student.coachingSport) && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {student.tutoringSubject ? (
+                          <Badge variant="primary">
+                            Tutoring:{' '}
+                            {student.tutoringSubject === 'Other' && student.tutoringSubjectOther
+                              ? `${student.tutoringSubject} (${student.tutoringSubjectOther})`
+                              : student.tutoringSubject}
+                          </Badge>
+                        ) : null}
+                        {student.coachingSport ? (
+                          <Badge variant="secondary">
+                            Coaching:{' '}
+                            {student.coachingSport === 'Other' && student.coachingSportOther
+                              ? `${student.coachingSport} (${student.coachingSportOther})`
+                              : student.coachingSport}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    )}
 
                     <div className="mb-4">
                       <h5 className="text-sm font-semibold text-neutral-dark mb-2">Certifications:</h5>
@@ -647,6 +674,9 @@ const ParentDashboard = () => {
                             {formatBookingStatusLabel(booking.status)}
                           </span>
                         </div>
+                        <p className="text-xs font-medium text-primary mb-0.5">
+                          {formatBookingServiceLine(booking)}
+                        </p>
                         <p className="text-sm text-neutral-light">
                           {booking.date ? new Date(booking.date).toLocaleDateString() : ''} •{' '}
                           {booking.startTime} – {booking.endTime}
@@ -692,9 +722,60 @@ const ParentDashboard = () => {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Book {selectedStudent.name}</h3>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-              You're about to book {selectedStudent.name} at {renderRate(selectedStudent)}
+              {(() => {
+                const r = getEffectiveHourlyRateForStudent(
+                  selectedStudent,
+                  parentQuickBook.serviceType,
+                );
+                const label = Number.isFinite(r)
+                  ? `$${r % 1 === 0 ? r : r.toFixed(2).replace(/\.00$/, '')} / hour`
+                  : renderRate(selectedStudent);
+                return (
+                  <>
+                    You&apos;re about to book {selectedStudent.name} at {label}
+                  </>
+                );
+              })()}
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Service</label>
+                <select
+                  name="serviceType"
+                  value={parentQuickBook.serviceType}
+                  onChange={handleParentQuickBookChange}
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {SERVICE_TYPES.map((opt) => {
+                    const disabled =
+                      (opt.value === 'tutor' && !selectedStudent.tutoringSubject) ||
+                      (opt.value === 'coach' && !selectedStudent.coachingSport);
+                    return (
+                      <option key={opt.value} value={opt.value} disabled={disabled}>
+                        {opt.label}
+                        {opt.value === 'tutor' && !selectedStudent.tutoringSubject ? ' (not offered)' : ''}
+                        {opt.value === 'coach' && !selectedStudent.coachingSport ? ' (not offered)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                {parentQuickBook.serviceType === 'tutor' && selectedStudent.tutoringSubject && (
+                  <p className="mt-1 text-xs text-neutral-light">
+                    Subject:{' '}
+                    {selectedStudent.tutoringSubject === 'Other' && selectedStudent.tutoringSubjectOther
+                      ? `${selectedStudent.tutoringSubject} (${selectedStudent.tutoringSubjectOther})`
+                      : selectedStudent.tutoringSubject}
+                  </p>
+                )}
+                {parentQuickBook.serviceType === 'coach' && selectedStudent.coachingSport && (
+                  <p className="mt-1 text-xs text-neutral-light">
+                    Sport:{' '}
+                    {selectedStudent.coachingSport === 'Other' && selectedStudent.coachingSportOther
+                      ? `${selectedStudent.coachingSport} (${selectedStudent.coachingSportOther})`
+                      : selectedStudent.coachingSport}
+                  </p>
+                )}
+              </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>
                 <input

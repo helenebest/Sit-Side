@@ -5,10 +5,18 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import MonthCalendarGrid from '../components/MonthCalendarGrid';
 import { useAuth } from '../contexts/AuthContext';
+import { TUTORING_SUBJECTS, COACHING_SPORTS } from '../constants/serviceOfferings';
+import { formatBookingServiceLine } from '../utils/bookingDisplay';
 
 const StudentDashboard = () => {
-  const { user, getMyBookings, sendBookingMessage, updateUnavailableDates, updateBookingStatus } =
-    useAuth();
+  const {
+    user,
+    getMyBookings,
+    sendBookingMessage,
+    updateUnavailableDates,
+    updateBookingStatus,
+    updateProfile,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
@@ -17,6 +25,13 @@ const StudentDashboard = () => {
   const [profileData, setProfileData] = useState({
     bio: user?.bio || 'Experienced babysitter with CPR certification. Love working with kids of all ages!',
     hourlyRate: user?.hourlyRate || 15,
+    useSameRateForAllServices: user?.useSameRateForAllServices !== false,
+    hourlyRateTutor: user?.hourlyRateTutor ?? '',
+    hourlyRateCoach: user?.hourlyRateCoach ?? '',
+    tutoringSubject: user?.tutoringSubject || '',
+    tutoringSubjectOther: user?.tutoringSubjectOther || '',
+    coachingSport: user?.coachingSport || '',
+    coachingSportOther: user?.coachingSportOther || '',
     experience: user?.experience || '2 years',
     certifications: user?.certifications?.length ? user.certifications : ['CPR Certified', 'First Aid'],
     location: user?.location || 'Downtown Area',
@@ -34,6 +49,22 @@ const StudentDashboard = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileData((prev) => ({
+      ...prev,
+      bio: user.bio ?? prev.bio,
+      hourlyRate: user.hourlyRate ?? prev.hourlyRate,
+      useSameRateForAllServices: user.useSameRateForAllServices !== false,
+      hourlyRateTutor: user.hourlyRateTutor ?? prev.hourlyRateTutor,
+      hourlyRateCoach: user.hourlyRateCoach ?? prev.hourlyRateCoach,
+      tutoringSubject: user.tutoringSubject ?? '',
+      tutoringSubjectOther: user.tutoringSubjectOther ?? '',
+      coachingSport: user.coachingSport ?? '',
+      coachingSportOther: user.coachingSportOther ?? '',
+    }));
+  }, [user]);
 
   const [newAvailability, setNewAvailability] = useState({
     day: '',
@@ -86,35 +117,29 @@ const StudentDashboard = () => {
     setProfileSuccess('');
 
     try {
-      // For now we only send fields that map directly to backend profile fields
-      // (bio, hourlyRate, experience, location, slackUserId)
-      // Availability and certifications are handled by separate flows.
-      const { bio, hourlyRate, experience, location, slackUserId } = profileData;
+      const hourlyRate = Number(profileData.hourlyRate);
+      const payload = {
+        bio: profileData.bio,
+        hourlyRate: Number.isFinite(hourlyRate) ? hourlyRate : 15,
+        experience: profileData.experience,
+        location: profileData.location,
+        slackUserId: profileData.slackUserId?.trim() || '',
+        useSameRateForAllServices: profileData.useSameRateForAllServices,
+        tutoringSubject: profileData.tutoringSubject || '',
+        tutoringSubjectOther: profileData.tutoringSubjectOther?.trim() || '',
+        coachingSport: profileData.coachingSport || '',
+        coachingSportOther: profileData.coachingSportOther?.trim() || '',
+      };
+      if (profileData.useSameRateForAllServices === false) {
+        const rt = Number(profileData.hourlyRateTutor);
+        const rc = Number(profileData.hourlyRateCoach);
+        if (Number.isFinite(rt)) payload.hourlyRateTutor = rt;
+        if (Number.isFinite(rc)) payload.hourlyRateCoach = rc;
+      }
 
-      const response = await fetch(
-        (process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api')) +
-          '/auth/profile',
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(localStorage.getItem('token')
-              ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
-              : {}),
-          },
-          body: JSON.stringify({
-            bio,
-            hourlyRate,
-            experience,
-            location,
-            slackUserId: slackUserId?.trim() || '',
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to update profile');
+      const result = await updateProfile(payload);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update profile');
       }
 
       setProfileSuccess('Profile updated successfully.');
@@ -386,6 +411,20 @@ const StudentDashboard = () => {
               </div>
             </div>
             <p className="text-neutral-light mb-4">{profileData.bio}</p>
+            {(user?.tutoringSubject || user?.coachingSport) && (
+              <div className="mb-4 flex flex-wrap gap-2 text-xs">
+                {user.tutoringSubject ? (
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">
+                    Tutoring: {user.tutoringSubject}
+                  </span>
+                ) : null}
+                {user.coachingSport ? (
+                  <span className="rounded-full bg-secondary/15 px-2 py-1 text-secondary">
+                    Coaching: {user.coachingSport}
+                  </span>
+                ) : null}
+              </div>
+            )}
             <div className="mb-4">
               <h4 className="text-sm font-semibold text-neutral-dark mb-2">Certifications:</h4>
               <div className="flex flex-wrap gap-2">
@@ -513,6 +552,9 @@ const StudentDashboard = () => {
                             {formatSitterBookingStatus(booking.status)}
                           </span>
                         </div>
+                        <p className="text-xs font-medium text-primary mb-0.5">
+                          {formatBookingServiceLine(booking)}
+                        </p>
                         <p className="text-sm text-neutral-light">
                           {booking.date ? new Date(booking.date).toLocaleDateString() : ''} •{' '}
                           {booking.startTime} – {booking.endTime}
@@ -730,7 +772,7 @@ const StudentDashboard = () => {
       {/* Profile Edit Dialog */}
       {profileDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-dialog-backdrop">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Edit Profile</h3>
             <div className="space-y-4">
               <div>
@@ -743,13 +785,127 @@ const StudentDashboard = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutral-dark mb-2">Hourly Rate</label>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">
+                  Babysitting hourly rate ($)
+                </label>
                 <input
                   type="number"
+                  min={5}
+                  max={50}
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                   value={profileData.hourlyRate}
                   onChange={(e) => setProfileData({ ...profileData, hourlyRate: e.target.value })}
                 />
+              </div>
+              <div className="flex items-start gap-2">
+                <input
+                  id="sameRates"
+                  type="checkbox"
+                  className="mt-1 rounded border-gray-300"
+                  checked={profileData.useSameRateForAllServices}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, useSameRateForAllServices: e.target.checked })
+                  }
+                />
+                <label htmlFor="sameRates" className="text-sm text-neutral-dark">
+                  Use the same hourly rate for babysitting, tutoring, and coaching (recommended).
+                </label>
+              </div>
+              {!profileData.useSameRateForAllServices && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-dark mb-2">
+                      Tutoring rate ($/hr)
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={50}
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={profileData.hourlyRateTutor}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, hourlyRateTutor: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-dark mb-2">
+                      Coaching rate ($/hr)
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={50}
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={profileData.hourlyRateCoach}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, hourlyRateCoach: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-sm font-medium text-neutral-dark mb-2">Tutoring (optional)</p>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Subject</label>
+                <select
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={profileData.tutoringSubject}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, tutoringSubject: e.target.value })
+                  }
+                >
+                  <option value="">Not offering tutoring</option>
+                  {TUTORING_SUBJECTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                {profileData.tutoringSubject === 'Other' && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-neutral-dark mb-2">Describe subject</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={profileData.tutoringSubjectOther}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, tutoringSubjectOther: e.target.value })
+                      }
+                      placeholder="e.g. Chemistry, Italian"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-sm font-medium text-neutral-dark mb-2">Sports coaching (optional)</p>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Sport</label>
+                <select
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={profileData.coachingSport}
+                  onChange={(e) => setProfileData({ ...profileData, coachingSport: e.target.value })}
+                >
+                  <option value="">Not offering coaching</option>
+                  {COACHING_SPORTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                {profileData.coachingSport === 'Other' && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-neutral-dark mb-2">Describe sport</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      value={profileData.coachingSportOther}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, coachingSportOther: e.target.value })
+                      }
+                      placeholder="e.g. Track, Swimming"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Experience</label>

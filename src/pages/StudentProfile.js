@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import MonthCalendarGrid from '../components/MonthCalendarGrid';
 import { useAuth } from '../contexts/AuthContext';
+import { SERVICE_TYPES } from '../constants/serviceOfferings';
 
 const StudentProfile = () => {
   const { id } = useParams();
@@ -13,6 +14,7 @@ const StudentProfile = () => {
   const { user, getStudentProfile, getStudentBookings, createBooking } = useAuth();
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [quickBookingData, setQuickBookingData] = useState({
+    serviceType: 'babysitter',
     date: '',
     startTime: '',
     endTime: '',
@@ -115,6 +117,7 @@ const StudentProfile = () => {
 
   const handleBookNow = () => {
     setQuickBookingData({
+      serviceType: 'babysitter',
       date: '',
       startTime: '',
       endTime: '',
@@ -156,6 +159,7 @@ const StudentProfile = () => {
     try {
       const payload = {
         studentId: String(student._id || student.id),
+        serviceType: quickBookingData.serviceType,
         date: quickBookingData.date,
         startTime: quickBookingData.startTime,
         endTime: quickBookingData.endTime,
@@ -309,6 +313,28 @@ const StudentProfile = () => {
               <h2 className="text-xl font-semibold text-neutral-dark mb-4">About Me</h2>
               <p className="text-neutral-light leading-relaxed">{student.bio}</p>
             </div>
+
+            {(student.tutoringSubject || student.coachingSport) && (
+              <div className="border-t border-gray-200 pt-6">
+                <h2 className="text-xl font-semibold text-neutral-dark mb-4">Tutoring & coaching</h2>
+                {student.tutoringSubject ? (
+                  <p className="text-neutral-light mb-2">
+                    <span className="font-medium text-neutral-dark">Tutoring: </span>
+                    {student.tutoringSubject === 'Other' && student.tutoringSubjectOther
+                      ? `${student.tutoringSubject} (${student.tutoringSubjectOther})`
+                      : student.tutoringSubject}
+                  </p>
+                ) : null}
+                {student.coachingSport ? (
+                  <p className="text-neutral-light">
+                    <span className="font-medium text-neutral-dark">Coaching: </span>
+                    {student.coachingSport === 'Other' && student.coachingSportOther
+                      ? `${student.coachingSport} (${student.coachingSportOther})`
+                      : student.coachingSport}
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <div className="border-t border-gray-200 pt-6">
               <h2 className="text-xl font-semibold text-neutral-dark mb-4">Certifications & Experience</h2>
@@ -552,6 +578,28 @@ const StudentProfile = () => {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold text-neutral-dark mb-4">Quick Book {student.name}</h3>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-2">Service</label>
+                <select
+                  name="serviceType"
+                  value={quickBookingData.serviceType}
+                  onChange={handleBookingFieldChange}
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {SERVICE_TYPES.map((opt) => {
+                    const disabled =
+                      (opt.value === 'tutor' && !student.tutoringSubject) ||
+                      (opt.value === 'coach' && !student.coachingSport);
+                    return (
+                      <option key={opt.value} value={opt.value} disabled={disabled}>
+                        {opt.label}
+                        {opt.value === 'tutor' && !student.tutoringSubject ? ' (not offered)' : ''}
+                        {opt.value === 'coach' && !student.coachingSport ? ' (not offered)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>
                 <input

@@ -4,7 +4,44 @@ const User = require('../models/User');
 const { getJwtSecret } = require('../lib/jwtSecret');
 const { auth } = require('../middleware/auth');
 const { notifyAdminPendingUserApproval } = require('../services/slack');
+const { TUTORING_SUBJECTS, COACHING_SPORTS } = require('../constants/serviceOfferings');
 const router = express.Router();
+
+function studentProfileShape(user) {
+  return {
+    id: user._id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
+    userType: user.userType,
+    grade: user.grade,
+    school: user.school,
+    bio: user.bio,
+    hourlyRate: user.hourlyRate,
+    useSameRateForAllServices: user.useSameRateForAllServices,
+    hourlyRateTutor: user.hourlyRateTutor,
+    hourlyRateCoach: user.hourlyRateCoach,
+    tutoringSubject: user.tutoringSubject,
+    tutoringSubjectOther: user.tutoringSubjectOther,
+    coachingSport: user.coachingSport,
+    coachingSportOther: user.coachingSportOther,
+    experience: user.experience,
+    certifications: user.certifications,
+    location: user.location,
+    availability: user.availability,
+    unavailableDates: user.unavailableDates,
+    emergencyContact: user.emergencyContact,
+    profileImage: user.profileImage,
+    rating: user.rating,
+    reviewCount: user.reviewCount,
+    isVerified: user.isVerified,
+    isActive: user.isActive,
+    backgroundCheckStatus: user.backgroundCheckStatus,
+    slackUserId: user.slackUserId,
+    createdAt: user.createdAt,
+  };
+}
 
 // Register new user
 router.post('/register', async (req, res) => {
@@ -226,32 +263,7 @@ router.get('/me', auth, async (req, res) => {
     }
 
     res.json({
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        userType: user.userType,
-        grade: user.grade,
-        school: user.school,
-        bio: user.bio,
-        hourlyRate: user.hourlyRate,
-        experience: user.experience,
-        certifications: user.certifications,
-        location: user.location,
-        availability: user.availability,
-        unavailableDates: user.unavailableDates,
-        emergencyContact: user.emergencyContact,
-        profileImage: user.profileImage,
-        rating: user.rating,
-        reviewCount: user.reviewCount,
-        isVerified: user.isVerified,
-        isActive: user.isActive,
-        backgroundCheckStatus: user.backgroundCheckStatus,
-        slackUserId: user.slackUserId,
-        createdAt: user.createdAt
-      }
+      user: studentProfileShape(user),
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -263,17 +275,62 @@ router.get('/me', auth, async (req, res) => {
 router.put('/profile', auth, async (req, res) => {
   try {
     const allowedUpdates = [
-      'firstName', 'lastName', 'phone', 'bio', 'hourlyRate', 
-      'experience', 'certifications', 'location', 'availability', 
-      'emergencyContact', 'profileImage', 'slackUserId'
+      'firstName', 'lastName', 'phone', 'bio', 'hourlyRate',
+      'experience', 'certifications', 'location', 'availability',
+      'emergencyContact', 'profileImage', 'slackUserId',
+      'useSameRateForAllServices', 'hourlyRateTutor', 'hourlyRateCoach',
+      'tutoringSubject', 'tutoringSubjectOther', 'coachingSport', 'coachingSportOther',
     ];
-    
+
     const updates = {};
-    Object.keys(req.body).forEach(key => {
+    Object.keys(req.body).forEach((key) => {
       if (allowedUpdates.includes(key)) {
         updates[key] = req.body[key];
       }
     });
+
+    if (req.user.userType === 'student') {
+      delete updates.hourlyRateTutor;
+      delete updates.hourlyRateCoach;
+      if (updates.tutoringSubject !== undefined && updates.tutoringSubject !== null) {
+        const v = String(updates.tutoringSubject).trim();
+        if (v && !TUTORING_SUBJECTS.includes(v)) {
+          return res.status(400).json({ error: 'Invalid tutoring subject' });
+        }
+        updates.tutoringSubject = v || '';
+      }
+      if (updates.coachingSport !== undefined && updates.coachingSport !== null) {
+        const v = String(updates.coachingSport).trim();
+        if (v && !COACHING_SPORTS.includes(v)) {
+          return res.status(400).json({ error: 'Invalid coaching sport' });
+        }
+        updates.coachingSport = v || '';
+      }
+      if (updates.useSameRateForAllServices !== undefined) {
+        updates.useSameRateForAllServices = Boolean(updates.useSameRateForAllServices);
+      }
+      const parseRate = (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        const n = Number(val);
+        return Number.isFinite(n) ? n : undefined;
+      };
+      if (req.body.hourlyRateTutor !== undefined) {
+        const n = parseRate(req.body.hourlyRateTutor);
+        if (n !== undefined) updates.hourlyRateTutor = n;
+      }
+      if (req.body.hourlyRateCoach !== undefined) {
+        const n = parseRate(req.body.hourlyRateCoach);
+        if (n !== undefined) updates.hourlyRateCoach = n;
+      }
+    } else {
+      delete updates.useSameRateForAllServices;
+      delete updates.hourlyRateTutor;
+      delete updates.hourlyRateCoach;
+      delete updates.tutoringSubject;
+      delete updates.tutoringSubjectOther;
+      delete updates.coachingSport;
+      delete updates.coachingSportOther;
+    }
 
     let user = await User.findByIdAndUpdate(
       req.user._id,
@@ -303,30 +360,8 @@ router.put('/profile', auth, async (req, res) => {
     }
 
     res.json({
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        userType: user.userType,
-        grade: user.grade,
-        school: user.school,
-        bio: user.bio,
-        hourlyRate: user.hourlyRate,
-        experience: user.experience,
-        certifications: user.certifications,
-        location: user.location,
-        availability: user.availability,
-        unavailableDates: user.unavailableDates,
-        emergencyContact: user.emergencyContact,
-        profileImage: user.profileImage,
-        rating: user.rating,
-        reviewCount: user.reviewCount,
-        isVerified: user.isVerified,
-        slackUserId: user.slackUserId,
-      },
-      message: 'Profile updated successfully'
+      user: studentProfileShape(user),
+      message: 'Profile updated successfully',
     });
 
   } catch (error) {

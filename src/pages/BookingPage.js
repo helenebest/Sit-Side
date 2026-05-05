@@ -4,6 +4,8 @@ import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
 import Card from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
+import { SERVICE_TYPES } from '../constants/serviceOfferings';
+import { getEffectiveHourlyRateForStudent } from '../utils/serviceRatesClient';
 
 const BookingPage = () => {
   const { studentId } = useParams();
@@ -14,6 +16,7 @@ const BookingPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [bookingData, setBookingData] = useState({
+    serviceType: 'babysitter',
     date: '',
     startTime: '',
     endTime: '',
@@ -63,6 +66,13 @@ const BookingPage = () => {
             name,
             hourlyRate,
             rating: studentData.rating || null,
+            tutoringSubject: studentData.tutoringSubject || '',
+            tutoringSubjectOther: studentData.tutoringSubjectOther || '',
+            coachingSport: studentData.coachingSport || '',
+            coachingSportOther: studentData.coachingSportOther || '',
+            useSameRateForAllServices: studentData.useSameRateForAllServices !== false,
+            hourlyRateTutor: studentData.hourlyRateTutor,
+            hourlyRateCoach: studentData.hourlyRateCoach,
           });
         } else {
           setError('Student not found');
@@ -135,12 +145,13 @@ const BookingPage = () => {
 
   const calculateTotal = () => {
     if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
-    
+
     const start = new Date(`2000-01-01T${bookingData.startTime}`);
     const end = new Date(`2000-01-01T${bookingData.endTime}`);
     const hours = (end - start) / (1000 * 60 * 60);
-    
-    return Math.round(hours * (student.hourlyRate || 15) * 100) / 100;
+
+    const rate = getEffectiveHourlyRateForStudent(student, bookingData.serviceType);
+    return Math.round(hours * rate * 100) / 100;
   };
 
   const handleSubmit = async () => {
@@ -152,6 +163,7 @@ const BookingPage = () => {
     try {
       const payload = {
         studentId: student.id,
+        serviceType: bookingData.serviceType,
         date: bookingData.date,
         startTime: bookingData.startTime,
         endTime: bookingData.endTime,
@@ -192,11 +204,51 @@ const BookingPage = () => {
     }
   };
 
+  const tutorAvailable = Boolean(student?.tutoringSubject);
+  const coachAvailable = Boolean(student?.coachingSport);
+
   const renderBookingDetails = () => (
     <div>
       <h3 className="text-xl font-semibold text-neutral-dark mb-6">Booking Details</h3>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-neutral-dark mb-2">Service</label>
+          <select
+            name="serviceType"
+            value={bookingData.serviceType}
+            onChange={handleChange}
+            className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {SERVICE_TYPES.map((opt) => {
+              const disabled =
+                (opt.value === 'tutor' && !tutorAvailable) || (opt.value === 'coach' && !coachAvailable);
+              return (
+                <option key={opt.value} value={opt.value} disabled={disabled}>
+                  {opt.label}
+                  {opt.value === 'tutor' && !tutorAvailable ? ' (not offered)' : ''}
+                  {opt.value === 'coach' && !coachAvailable ? ' (not offered)' : ''}
+                </option>
+              );
+            })}
+          </select>
+          {bookingData.serviceType === 'tutor' && tutorAvailable && (
+            <p className="text-xs text-neutral-light mt-1">
+              Subject:{' '}
+              {student.tutoringSubject === 'Other' && student.tutoringSubjectOther
+                ? `${student.tutoringSubject} (${student.tutoringSubjectOther})`
+                : student.tutoringSubject}
+            </p>
+          )}
+          {bookingData.serviceType === 'coach' && coachAvailable && (
+            <p className="text-xs text-neutral-light mt-1">
+              Sport:{' '}
+              {student.coachingSport === 'Other' && student.coachingSportOther
+                ? `${student.coachingSport} (${student.coachingSportOther})`
+                : student.coachingSport}
+            </p>
+          )}
+        </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-neutral-dark mb-2">Date</label>
           <input
@@ -301,7 +353,7 @@ const BookingPage = () => {
       <h3 className="text-xl font-semibold text-neutral-dark mb-6">Payment Information</h3>
       
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-        Payment will be processed after the babysitting session is completed.
+        Payment will be processed after the session is completed.
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -361,8 +413,15 @@ const BookingPage = () => {
         <h4 className="text-lg font-semibold text-neutral-dark mb-4">Booking Summary</h4>
         <div className="space-y-3">
           <div className="flex justify-between">
-            <span className="text-neutral-light">Babysitter:</span>
+            <span className="text-neutral-light">Student:</span>
             <span className="text-neutral-dark">{student.name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-light">Service:</span>
+            <span className="text-neutral-dark">
+              {SERVICE_TYPES.find((s) => s.value === bookingData.serviceType)?.label ||
+                bookingData.serviceType}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-neutral-light">Date:</span>
@@ -400,8 +459,15 @@ const BookingPage = () => {
         <h4 className="text-lg font-semibold text-neutral-dark mb-4">Booking Details</h4>
         <div className="space-y-3">
           <div className="flex justify-between">
-            <span className="text-neutral-light">Babysitter:</span>
+            <span className="text-neutral-light">Student:</span>
             <span className="text-neutral-dark">{student.name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-light">Service:</span>
+            <span className="text-neutral-dark">
+              {SERVICE_TYPES.find((s) => s.value === bookingData.serviceType)?.label ||
+                bookingData.serviceType}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-neutral-light">Date & Time:</span>
@@ -423,7 +489,7 @@ const BookingPage = () => {
       </Card>
 
       <Card className="p-6">
-        <h4 className="text-lg font-semibold text-neutral-dark mb-4">Message to Your Babysitter (Optional)</h4>
+        <h4 className="text-lg font-semibold text-neutral-dark mb-4">Message (Optional)</h4>
         <p className="text-sm text-neutral-light mb-3">
           This message will be sent to {student.name} via Slack along with your booking details so you can confirm
           any important information in advance.
@@ -504,10 +570,20 @@ const BookingPage = () => {
               <PrimaryButton
                 onClick={handleNext}
                 disabled={
-                  activeStep === 0 && (!bookingData.date || !bookingData.startTime || !bookingData.endTime)
+                  activeStep === 0 &&
+                  (!bookingData.date ||
+                    !bookingData.startTime ||
+                    !bookingData.endTime ||
+                    (bookingData.serviceType === 'tutor' && !tutorAvailable) ||
+                    (bookingData.serviceType === 'coach' && !coachAvailable))
                 }
                 className={
-                  activeStep === 0 && (!bookingData.date || !bookingData.startTime || !bookingData.endTime)
+                  activeStep === 0 &&
+                  (!bookingData.date ||
+                    !bookingData.startTime ||
+                    !bookingData.endTime ||
+                    (bookingData.serviceType === 'tutor' && !tutorAvailable) ||
+                    (bookingData.serviceType === 'coach' && !coachAvailable))
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
                 }

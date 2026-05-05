@@ -20,6 +20,16 @@ const bookingSchema = new mongoose.Schema({
   emergencyContact: { type: String, required: true },
   hourlyRate: { type: Number, required: true },
   totalAmount: { type: Number, required: true },
+
+  serviceType: {
+    type: String,
+    enum: ['babysitter', 'tutor', 'coach'],
+    default: 'babysitter',
+  },
+  tutoringSubject: { type: String, trim: true },
+  tutoringSubjectOther: { type: String, trim: true, maxlength: 120 },
+  coachingSport: { type: String, trim: true },
+  coachingSportOther: { type: String, trim: true, maxlength: 120 },
   
   status: { 
     type: String, 
