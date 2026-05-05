@@ -3,6 +3,10 @@ const User = require('../models/User');
 const { auth, requireStudentOrParent } = require('../middleware/auth');
 const router = express.Router();
 
+function escapeRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Get all students (for parents to browse)
 router.get('/students', auth, requireStudentOrParent, async (req, res) => {
   try {
@@ -26,15 +30,27 @@ router.get('/students', auth, requireStudentOrParent, async (req, res) => {
       filter.location = { $regex: location, $options: 'i' };
     }
 
-    // Add rate filter
+    // Add rate filter (include sitters with no hourlyRate set so they are not hidden incorrectly)
     if (maxRate) {
-      filter.hourlyRate = { $lte: parseFloat(maxRate) };
+      const cap = parseFloat(maxRate);
+      if (Number.isFinite(cap)) {
+        filter.$or = [
+          { hourlyRate: { $lte: cap } },
+          { hourlyRate: null },
+          { hourlyRate: { $exists: false } },
+        ];
+      }
     }
 
-    // Add experience filter
-    if (experience) {
-      const years = parseInt(experience.replace('+', ''));
-      filter.experience = { $regex: `\\b${years}\\+?`, $options: 'i' };
+    // Add experience filter (flexible text match; avoids NaN from odd query strings)
+    if (experience && String(experience).trim()) {
+      const raw = String(experience).trim().replace(/\+/g, '');
+      const years = parseInt(raw, 10);
+      if (Number.isFinite(years)) {
+        filter.experience = { $regex: `\\b${years}\\+?`, $options: 'i' };
+      } else {
+        filter.experience = { $regex: escapeRegex(String(experience).trim()), $options: 'i' };
+      }
     }
 
     // Calculate pagination

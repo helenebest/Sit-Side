@@ -265,6 +265,11 @@ router.put('/:id/status', auth, requireStudentOrParent, async (req, res) => {
 
     await booking.save();
 
+    await booking.populate([
+      { path: 'student', select: 'firstName lastName email phone rating profileImage slackUserId' },
+      { path: 'parent', select: 'firstName lastName email phone profileImage' },
+    ]);
+
     res.json({
       booking,
       message: `Booking ${status} successfully`

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import OutlineButton from '../components/ui/OutlineButton';
@@ -11,6 +11,7 @@ const ParentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, getStudents, getMyBookings, createBooking, sendBookingMessage } = useAuth();
+  const [searching, setSearching] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [searchFilters, setSearchFilters] = useState({
     location: '',
@@ -74,8 +75,105 @@ const ParentDashboard = () => {
     setActiveTab(newValue);
   };
 
-  const handleSearch = () => {
-    console.log('Searching with filters:', searchFilters);
+  const studentMatchesAvailability = (student, slot) => {
+    if (!slot) return true;
+    const key = String(slot).toLowerCase();
+    const av = student.availability;
+    if (av && typeof av === 'object' && !Array.isArray(av) && key !== 'weekend') {
+      const days = [
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+        'sunday',
+      ];
+      return days.some((day) => {
+        const d = av[day];
+        return d && d[key];
+      });
+    }
+    if (key === 'weekend') {
+      if (av && typeof av === 'object' && !Array.isArray(av)) {
+        return ['saturday', 'sunday'].some((day) => {
+          const d = av[day];
+          return d && (d.morning || d.afternoon || d.evening);
+        });
+      }
+      const t = `${student.availabilityText || student.bio || ''}`.toLowerCase();
+      return /weekend|saturday|sunday|\bsat\b|\bsun\b/.test(t);
+    }
+    const t = `${student.availabilityText || ''}`.toLowerCase();
+    return t.includes(key);
+  };
+
+  const loadAllStudents = useCallback(async () => {
+    setStudentsLoading(true);
+    setStudentsError('');
+    try {
+      const result = await getStudents({ page: 1, limit: 100 });
+      if (!result.success) {
+        setStudentsError(result.error || 'Unable to fetch students.');
+        return;
+      }
+      const list = studentsFromApiResponse(result.data);
+      setFetchedStudents(
+        list.map(normalizeStudentForListing).filter(Boolean),
+      );
+    } catch (error) {
+      setStudentsError(error.message || 'Unable to fetch students.');
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, [getStudents]);
+
+  const handleSearch = async () => {
+    setSearching(true);
+    setStudentsError('');
+    setStudentsLoading(true);
+    try {
+      const params = { page: 1, limit: 100 };
+      if (searchFilters.location.trim()) {
+        params.location = searchFilters.location.trim();
+      }
+      if (searchFilters.maxRate !== '' && searchFilters.maxRate != null) {
+        const n = parseFloat(String(searchFilters.maxRate));
+        if (Number.isFinite(n)) {
+          params.maxRate = String(n);
+        }
+      }
+      if (searchFilters.experience.trim()) {
+        params.experience = searchFilters.experience.trim();
+      }
+
+      const result = await getStudents(params);
+      if (!result.success) {
+        setStudentsError(result.error || 'Search failed.');
+        return;
+      }
+      let list = studentsFromApiResponse(result.data);
+      list = list.map(normalizeStudentForListing).filter(Boolean);
+      if (searchFilters.availability) {
+        list = list.filter((s) => studentMatchesAvailability(s, searchFilters.availability));
+      }
+      setFetchedStudents(list);
+    } catch (error) {
+      setStudentsError(error.message || 'Search failed.');
+    } finally {
+      setStudentsLoading(false);
+      setSearching(false);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchFilters({
+      location: '',
+      maxRate: '',
+      availability: '',
+      experience: '',
+    });
+    loadAllStudents();
   };
 
   const handleBookStudent = (student) => {
@@ -261,6 +359,7 @@ const ParentDashboard = () => {
       case 'confirmed': return 'bg-green-100 text-green-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -270,8 +369,14 @@ const ParentDashboard = () => {
       case 'confirmed': return '✓';
       case 'pending': return '⏳';
       case 'cancelled': return '✗';
+      case 'rejected': return '✗';
       default: return null;
     }
+  };
+
+  const formatBookingStatusLabel = (status) => {
+    if (status === 'confirmed') return 'Scheduled';
+    return status;
   };
 
   const handleOpenMessageDialog = (booking) => {
@@ -369,10 +474,22 @@ const ParentDashboard = () => {
               <option value="weekend">Weekend</option>
             </select>
           </div>
-          <div>
-            <PrimaryButton onClick={handleSearch} className="w-full">
-              🔍 Search
+          <div className="flex flex-col gap-2">
+            <PrimaryButton
+              onClick={handleSearch}
+              className="w-full"
+              disabled={searching || studentsLoading}
+            >
+              {searching ? 'Searching…' : '🔍 Search'}
             </PrimaryButton>
+            <OutlineButton
+              type="button"
+              onClick={handleClearSearch}
+              className="w-full"
+              disabled={studentsLoading}
+            >
+              Clear filters
+            </OutlineButton>
           </div>
         </div>
       </Card>
@@ -527,7 +644,7 @@ const ParentDashboard = () => {
                               : 'Babysitter'}
                           </h4>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                            {booking.status}
+                            {formatBookingStatusLabel(booking.status)}
                           </span>
                         </div>
                         <p className="text-sm text-neutral-light">
