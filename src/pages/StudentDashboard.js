@@ -7,7 +7,8 @@ import MonthCalendarGrid from '../components/MonthCalendarGrid';
 import { useAuth } from '../contexts/AuthContext';
 
 const StudentDashboard = () => {
-  const { user, getMyBookings, sendBookingMessage, updateUnavailableDates } = useAuth();
+  const { user, getMyBookings, sendBookingMessage, updateUnavailableDates, updateBookingStatus } =
+    useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
@@ -42,6 +43,7 @@ const StudentDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState('');
+  const [bookingActionId, setBookingActionId] = useState(null);
 
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -220,6 +222,7 @@ const StudentDashboard = () => {
       case 'confirmed': return 'bg-green-100 text-green-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -229,7 +232,52 @@ const StudentDashboard = () => {
       case 'confirmed': return '✓';
       case 'pending': return '⏳';
       case 'cancelled': return '✗';
+      case 'rejected': return '✗';
       default: return null;
+    }
+  };
+
+  const formatSitterBookingStatus = (status) => {
+    if (status === 'confirmed') return 'Scheduled';
+    if (status === 'rejected') return 'Declined';
+    return status;
+  };
+
+  const handleConfirmBooking = async (booking) => {
+    setBookingActionId(booking._id);
+    setBookingsError('');
+    try {
+      const result = await updateBookingStatus(booking._id, 'confirmed');
+      if (!result.success) {
+        throw new Error(result.error || 'Could not update booking.');
+      }
+      const next = result.data?.booking;
+      if (next) {
+        setBookings((prev) => prev.map((b) => (b._id === booking._id ? { ...b, ...next } : b)));
+      }
+    } catch (err) {
+      setBookingsError(err.message || 'Could not update booking.');
+    } finally {
+      setBookingActionId(null);
+    }
+  };
+
+  const handleDeclineBooking = async (booking) => {
+    setBookingActionId(booking._id);
+    setBookingsError('');
+    try {
+      const result = await updateBookingStatus(booking._id, 'rejected');
+      if (!result.success) {
+        throw new Error(result.error || 'Could not update booking.');
+      }
+      const next = result.data?.booking;
+      if (next) {
+        setBookings((prev) => prev.map((b) => (b._id === booking._id ? { ...b, ...next } : b)));
+      }
+    } catch (err) {
+      setBookingsError(err.message || 'Could not update booking.');
+    } finally {
+      setBookingActionId(null);
     }
   };
 
@@ -462,7 +510,7 @@ const StudentDashboard = () => {
                               : 'Parent'}
                           </h4>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                            {booking.status}
+                            {formatSitterBookingStatus(booking.status)}
                           </span>
                         </div>
                         <p className="text-sm text-neutral-light">
@@ -483,6 +531,24 @@ const StudentDashboard = () => {
                         )}
                       </div>
                       <div className="ml-4 flex flex-col gap-2">
+                        {booking.status === 'pending' && (
+                          <>
+                            <PrimaryButton
+                              onClick={() => handleConfirmBooking(booking)}
+                              className="whitespace-nowrap"
+                              disabled={!!bookingActionId}
+                            >
+                              {bookingActionId === booking._id ? 'Saving…' : 'Schedule'}
+                            </PrimaryButton>
+                            <OutlineButton
+                              onClick={() => handleDeclineBooking(booking)}
+                              className="whitespace-nowrap"
+                              disabled={!!bookingActionId}
+                            >
+                              Decline
+                            </OutlineButton>
+                          </>
+                        )}
                         <OutlineButton
                           onClick={() => handleOpenMessageDialog(booking)}
                           className="whitespace-nowrap"
