@@ -3,6 +3,36 @@
  * Uses local date/time from booking.date + startTime/endTime strings (HTML time input shape).
  */
 
+/** e.g. "14:30" → "2:30 PM" */
+export function formatTime12(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const [hRaw, mRaw] = timeStr.trim().split(':');
+  let h = parseInt(hRaw, 10);
+  const m = parseInt(mRaw ?? '0', 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return timeStr.trim();
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+export function getBookingChipParts(booking) {
+  const parent = booking.parent;
+  const name = parent
+    ? `${parent.firstName || ''} ${parent.lastName || ''}`.trim() || 'Parent'
+    : 'Booking';
+  const start = formatTime12(booking.startTime);
+  const end = formatTime12(booking.endTime);
+  const timeRange =
+    start && end ? `${start} – ${end}` : `${booking.startTime || ''}–${booking.endTime || ''}`.trim();
+  const title = `${timeRange}${name ? ` · ${name}` : ''}`.trim();
+  return {
+    name,
+    timeRange: timeRange || 'Time TBD',
+    title,
+  };
+}
+
 function dayBounds(d) {
   const x = new Date(d);
   const start = new Date(x.getFullYear(), x.getMonth(), x.getDate(), 0, 0, 0, 0);
@@ -73,12 +103,8 @@ function assignLanes(rowSegs) {
 }
 
 function shortLabel(booking) {
-  const t = booking.startTime || '';
-  const parent = booking.parent;
-  const name = parent
-    ? `${parent.firstName || ''} ${parent.lastName || ''}`.trim() || 'Booking'
-    : 'Booking';
-  return `${t} ${name}`.trim();
+  const parts = getBookingChipParts(booking);
+  return parts.title.replace(/\s+/g, ' ').trim();
 }
 
 /** Theme classes live in `src/index.css` (`.cal-bar-theme-*`) — not Tailwind. */

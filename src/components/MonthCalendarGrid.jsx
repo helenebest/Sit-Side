@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { buildMonthGrid, WEEKDAY_LABELS_SHORT } from '../utils/buildMonthGrid';
-import { getBookingRange, themeClassForBooking } from '../utils/bookingCalendarSpans';
+import { getBookingRange, themeClassForBooking, getBookingChipParts } from '../utils/bookingCalendarSpans';
 
 const STRUCTURE = {
   outer: {
@@ -38,9 +38,11 @@ const STRUCTURE = {
     borderRight: '1px solid #bfc7d1',
     borderBottom: '1px solid #bfc7d1',
     padding: '3px',
-    minHeight: '108px',
+    minHeight: '132px',
     boxSizing: 'border-box',
     verticalAlign: 'top',
+    display: 'flex',
+    flexDirection: 'column',
   },
 };
 
@@ -92,13 +94,13 @@ const MonthCalendarGrid = ({
 
         const key = dayStart.getTime();
         const labels = byDay.get(key) ?? [];
-        const parentName = booking.parent
-          ? `${booking.parent.firstName || ''} ${booking.parent.lastName || ''}`.trim()
-          : '';
+        const chip = getBookingChipParts(booking);
         labels.push({
           key: `${String(booking._id ?? booking.id ?? key)}-${labels.length}`,
-          text: `${booking.startTime || ''}${parentName ? ` ${parentName}` : ''}`.trim() || 'Booking',
+          timeRange: chip.timeRange,
+          name: chip.name,
           themeClass: themeClassForBooking(booking),
+          title: chip.title,
         });
         byDay.set(key, labels);
       }
@@ -164,9 +166,10 @@ const MonthCalendarGrid = ({
                         <div
                           key={item.key}
                           className={`month-cal-day-booking-chip ${item.themeClass}`}
-                          title={item.text}
+                          title={item.title || `${item.timeRange} ${item.name}`}
                         >
-                          {item.text}
+                          <span className="month-cal-day-booking-time">{item.timeRange}</span>
+                          <span className="month-cal-day-booking-name">{item.name}</span>
                         </div>
                       ))}
                       {dayBookings.length > visibleBookings.length ? (

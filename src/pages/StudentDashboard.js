@@ -7,6 +7,15 @@ import MonthCalendarGrid from '../components/MonthCalendarGrid';
 import { useAuth } from '../contexts/AuthContext';
 import { TUTORING_SUBJECTS, COACHING_SPORTS } from '../constants/serviceOfferings';
 import { formatBookingServiceLine } from '../utils/bookingDisplay';
+import {
+  tutoringOfferingsFromUser,
+  coachingOfferingsFromUser,
+  tutoringOfferingLabel,
+  coachingOfferingLabel,
+} from '../utils/studentOfferingsClient';
+
+const TUTORING_PRESET = TUTORING_SUBJECTS.filter((s) => s !== 'Other');
+const COACHING_PRESET = COACHING_SPORTS.filter((s) => s !== 'Other');
 
 const StudentDashboard = () => {
   const {
@@ -28,10 +37,8 @@ const StudentDashboard = () => {
     useSameRateForAllServices: user?.useSameRateForAllServices !== false,
     hourlyRateTutor: user?.hourlyRateTutor ?? '',
     hourlyRateCoach: user?.hourlyRateCoach ?? '',
-    tutoringSubject: user?.tutoringSubject || '',
-    tutoringSubjectOther: user?.tutoringSubjectOther || '',
-    coachingSport: user?.coachingSport || '',
-    coachingSportOther: user?.coachingSportOther || '',
+    tutoringOfferings: tutoringOfferingsFromUser(user || {}),
+    coachingOfferings: coachingOfferingsFromUser(user || {}),
     experience: user?.experience || '2 years',
     certifications: user?.certifications?.length ? user.certifications : ['CPR Certified', 'First Aid'],
     location: user?.location || 'Downtown Area',
@@ -59,10 +66,8 @@ const StudentDashboard = () => {
       useSameRateForAllServices: user.useSameRateForAllServices !== false,
       hourlyRateTutor: user.hourlyRateTutor ?? prev.hourlyRateTutor,
       hourlyRateCoach: user.hourlyRateCoach ?? prev.hourlyRateCoach,
-      tutoringSubject: user.tutoringSubject ?? '',
-      tutoringSubjectOther: user.tutoringSubjectOther ?? '',
-      coachingSport: user.coachingSport ?? '',
-      coachingSportOther: user.coachingSportOther ?? '',
+      tutoringOfferings: tutoringOfferingsFromUser(user),
+      coachingOfferings: coachingOfferingsFromUser(user),
     }));
   }, [user]);
 
@@ -118,6 +123,12 @@ const StudentDashboard = () => {
 
     try {
       const hourlyRate = Number(profileData.hourlyRate);
+      const tutoringOfferings = (profileData.tutoringOfferings || [])
+        .map((o) => ({ subject: (o.subject || '').trim(), detail: (o.detail || '').trim() }))
+        .filter((o) => o.subject && (o.subject !== 'Other' || o.detail));
+      const coachingOfferings = (profileData.coachingOfferings || [])
+        .map((o) => ({ sport: (o.sport || '').trim(), detail: (o.detail || '').trim() }))
+        .filter((o) => o.sport && (o.sport !== 'Other' || o.detail));
       const payload = {
         bio: profileData.bio,
         hourlyRate: Number.isFinite(hourlyRate) ? hourlyRate : 15,
@@ -125,10 +136,8 @@ const StudentDashboard = () => {
         location: profileData.location,
         slackUserId: profileData.slackUserId?.trim() || '',
         useSameRateForAllServices: profileData.useSameRateForAllServices,
-        tutoringSubject: profileData.tutoringSubject || '',
-        tutoringSubjectOther: profileData.tutoringSubjectOther?.trim() || '',
-        coachingSport: profileData.coachingSport || '',
-        coachingSportOther: profileData.coachingSportOther?.trim() || '',
+        tutoringOfferings,
+        coachingOfferings,
       };
       if (profileData.useSameRateForAllServices === false) {
         const rt = Number(profileData.hourlyRateTutor);
@@ -411,18 +420,18 @@ const StudentDashboard = () => {
               </div>
             </div>
             <p className="text-neutral-light mb-4">{profileData.bio}</p>
-            {(user?.tutoringSubject || user?.coachingSport) && (
+            {(tutoringOfferingsFromUser(user).length > 0 || coachingOfferingsFromUser(user).length > 0) && (
               <div className="mb-4 flex flex-wrap gap-2 text-xs">
-                {user.tutoringSubject ? (
-                  <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">
-                    Tutoring: {user.tutoringSubject}
+                {tutoringOfferingsFromUser(user).map((o, i) => (
+                  <span key={`t-${i}`} className="rounded-full bg-primary/10 px-2 py-1 text-primary">
+                    Tutoring: {tutoringOfferingLabel(o)}
                   </span>
-                ) : null}
-                {user.coachingSport ? (
-                  <span className="rounded-full bg-secondary/15 px-2 py-1 text-secondary">
-                    Coaching: {user.coachingSport}
+                ))}
+                {coachingOfferingsFromUser(user).map((o, i) => (
+                  <span key={`c-${i}`} className="rounded-full bg-secondary/15 px-2 py-1 text-secondary">
+                    Coaching: {coachingOfferingLabel(o)}
                   </span>
-                ) : null}
+                ))}
               </div>
             )}
             <div className="mb-4">
@@ -746,7 +755,7 @@ const StudentDashboard = () => {
                 <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-neutral-light">
                   <div className="flex items-center gap-1.5">
                     <span className="inline-block h-3 w-6 rounded-sm bg-primary" />
-                    <span>Bookings (colors vary)</span>
+                    <span>Bookings show time range and parent name</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="inline-block h-3 w-3 border border-red-200 bg-red-50" />
@@ -847,65 +856,157 @@ const StudentDashboard = () => {
               )}
               <div className="border-t border-gray-200 pt-4">
                 <p className="text-sm font-medium text-neutral-dark mb-2">Tutoring (optional)</p>
-                <label className="block text-sm font-medium text-neutral-dark mb-2">Subject</label>
-                <select
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={profileData.tutoringSubject}
-                  onChange={(e) =>
-                    setProfileData({ ...profileData, tutoringSubject: e.target.value })
+                <p className="text-xs text-neutral-light mb-2">Select any subjects you tutor. Add multiple custom topics below.</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {TUTORING_PRESET.map((sub) => {
+                    const checked = profileData.tutoringOfferings.some(
+                      (o) => o.subject === sub && !(o.detail || '').trim(),
+                    );
+                    return (
+                      <label
+                        key={sub}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium cursor-pointer hover:bg-gray-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setProfileData((prev) => {
+                              let next = [...prev.tutoringOfferings];
+                              const idx = next.findIndex((o) => o.subject === sub && !(o.detail || '').trim());
+                              if (idx >= 0) next.splice(idx, 1);
+                              else next.push({ subject: sub, detail: '' });
+                              return { ...prev, tutoringOfferings: next };
+                            });
+                          }}
+                        />
+                        {sub}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs font-medium text-neutral-dark mb-1">Custom subjects (not in the list)</p>
+                {profileData.tutoringOfferings.map((o, idx) =>
+                  o.subject === 'Other' ? (
+                    <div key={`other-t-${idx}`} className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={o.detail}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setProfileData((prev) => {
+                            const next = [...prev.tutoringOfferings];
+                            next[idx] = { subject: 'Other', detail: v };
+                            return { ...prev, tutoringOfferings: next };
+                          });
+                        }}
+                        placeholder="e.g. Chemistry, Italian"
+                      />
+                      <OutlineButton
+                        type="button"
+                        className="shrink-0 px-2"
+                        onClick={() => {
+                          setProfileData((prev) => ({
+                            ...prev,
+                            tutoringOfferings: prev.tutoringOfferings.filter((_, i) => i !== idx),
+                          }));
+                        }}
+                      >
+                        Remove
+                      </OutlineButton>
+                    </div>
+                  ) : null,
+                )}
+                <OutlineButton
+                  type="button"
+                  className="mt-1"
+                  onClick={() =>
+                    setProfileData((prev) => ({
+                      ...prev,
+                      tutoringOfferings: [...prev.tutoringOfferings, { subject: 'Other', detail: '' }],
+                    }))
                   }
                 >
-                  <option value="">Not offering tutoring</option>
-                  {TUTORING_SUBJECTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                {profileData.tutoringSubject === 'Other' && (
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium text-neutral-dark mb-2">Describe subject</label>
-                    <input
-                      type="text"
-                      className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                      value={profileData.tutoringSubjectOther}
-                      onChange={(e) =>
-                        setProfileData({ ...profileData, tutoringSubjectOther: e.target.value })
-                      }
-                      placeholder="e.g. Chemistry, Italian"
-                    />
-                  </div>
-                )}
+                  + Add custom subject
+                </OutlineButton>
               </div>
               <div className="border-t border-gray-200 pt-4">
                 <p className="text-sm font-medium text-neutral-dark mb-2">Sports coaching (optional)</p>
-                <label className="block text-sm font-medium text-neutral-dark mb-2">Sport</label>
-                <select
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={profileData.coachingSport}
-                  onChange={(e) => setProfileData({ ...profileData, coachingSport: e.target.value })}
-                >
-                  <option value="">Not offering coaching</option>
-                  {COACHING_SPORTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                {profileData.coachingSport === 'Other' && (
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium text-neutral-dark mb-2">Describe sport</label>
-                    <input
-                      type="text"
-                      className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                      value={profileData.coachingSportOther}
-                      onChange={(e) =>
-                        setProfileData({ ...profileData, coachingSportOther: e.target.value })
-                      }
-                      placeholder="e.g. Track, Swimming"
-                    />
-                  </div>
+                <p className="text-xs text-neutral-light mb-2">Select any sports you coach. Add custom sports below.</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {COACHING_PRESET.map((sp) => {
+                    const checked = profileData.coachingOfferings.some(
+                      (o) => o.sport === sp && !(o.detail || '').trim(),
+                    );
+                    return (
+                      <label
+                        key={sp}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium cursor-pointer hover:bg-gray-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setProfileData((prev) => {
+                              let next = [...prev.coachingOfferings];
+                              const idx = next.findIndex((o) => o.sport === sp && !(o.detail || '').trim());
+                              if (idx >= 0) next.splice(idx, 1);
+                              else next.push({ sport: sp, detail: '' });
+                              return { ...prev, coachingOfferings: next };
+                            });
+                          }}
+                        />
+                        {sp}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs font-medium text-neutral-dark mb-1">Custom sports (not in the list)</p>
+                {profileData.coachingOfferings.map((o, idx) =>
+                  o.sport === 'Other' ? (
+                    <div key={`other-c-${idx}`} className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={o.detail}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setProfileData((prev) => {
+                            const next = [...prev.coachingOfferings];
+                            next[idx] = { sport: 'Other', detail: v };
+                            return { ...prev, coachingOfferings: next };
+                          });
+                        }}
+                        placeholder="e.g. Track, Swimming"
+                      />
+                      <OutlineButton
+                        type="button"
+                        className="shrink-0 px-2"
+                        onClick={() => {
+                          setProfileData((prev) => ({
+                            ...prev,
+                            coachingOfferings: prev.coachingOfferings.filter((_, i) => i !== idx),
+                          }));
+                        }}
+                      >
+                        Remove
+                      </OutlineButton>
+                    </div>
+                  ) : null,
                 )}
+                <OutlineButton
+                  type="button"
+                  className="mt-1"
+                  onClick={() =>
+                    setProfileData((prev) => ({
+                      ...prev,
+                      coachingOfferings: [...prev.coachingOfferings, { sport: 'Other', detail: '' }],
+                    }))
+                  }
+                >
+                  + Add custom sport
+                </OutlineButton>
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-2">Experience</label>
