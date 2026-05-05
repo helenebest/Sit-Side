@@ -344,7 +344,7 @@ router.put('/profile', auth, async (req, res) => {
     let user = await User.findByIdAndUpdate(
       req.user._id,
       updates,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!user) {
@@ -361,7 +361,7 @@ router.put('/profile', auth, async (req, res) => {
         user = await User.findByIdAndUpdate(
           req.user._id,
           { adminApprovalSlackNotifiedAt: new Date() },
-          { new: true, runValidators: true }
+          { returnDocument: 'after', runValidators: true }
         );
       } catch (slackErr) {
         console.error('Admin approval Slack notification failed:', slackErr);

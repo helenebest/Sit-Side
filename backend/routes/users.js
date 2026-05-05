@@ -165,7 +165,7 @@ router.put('/availability', auth, async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { availability },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     res.json({
@@ -201,7 +201,7 @@ router.put('/unavailable-dates', auth, async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { unavailableDates: parsedDates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     res.json({
