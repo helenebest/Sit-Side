@@ -4,6 +4,7 @@ const User = require('../models/User');
 const { getJwtSecret } = require('../lib/jwtSecret');
 const { auth } = require('../middleware/auth');
 const { notifyAdminPendingUserApproval } = require('../services/slack');
+const { isPublicRegistrationUserType } = require('../lib/userTypes');
 const {
   normalizedTutoringOfferings,
   normalizedCoachingOfferings,
@@ -86,8 +87,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
-    // Validate userType
-    if (!['student', 'parent', 'admin'].includes(userType)) {
+    // Admin accounts are provisioned out-of-band with the seed script, never via public signup.
+    if (!isPublicRegistrationUserType(userType)) {
       return res.status(400).json({ error: 'Invalid user type' });
     }
 
@@ -138,10 +139,6 @@ router.post('/register', async (req, res) => {
     // Add parent-specific fields
     if (userType === 'parent') {
       userData.emergencyContact = emergencyContact?.trim();
-    }
-
-    if (userType === 'admin') {
-      userData.isVerified = true;
     }
 
     // Create user

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { isPublicRegistrationUserType } = require('./lib/userTypes');
 require('dotenv').config();
 
 const app = express();
@@ -91,6 +92,11 @@ app.post('/api/auth/register', (req, res) => {
   // Check if user exists
   if (users.find(u => u.email === email)) {
     return res.status(400).json({ error: 'User already exists' });
+  }
+
+  // Admin accounts are created out-of-band; public signup is only for students and parents.
+  if (!isPublicRegistrationUserType(userType)) {
+    return res.status(400).json({ error: 'Invalid user type' });
   }
   
   const defaultAvailability = {

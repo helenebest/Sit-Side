@@ -8,13 +8,17 @@ const SignupPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { register } = useAuth();
+  const requestedUserType = searchParams.get('type');
+  const initialUserType = ['student', 'parent'].includes(requestedUserType)
+    ? requestedUserType
+    : 'student';
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    userType: searchParams.get('type') || 'student',
+    userType: initialUserType,
     phone: '',
     school: '',
     grade: '',
