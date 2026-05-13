@@ -1,6 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const { auth, requireStudentOrParent } = require('../middleware/auth');
+const { approvedStudentFilter } = require('../lib/studentVisibility');
 const router = express.Router();
 
 function escapeRegex(str) {
@@ -19,11 +20,8 @@ router.get('/students', auth, requireStudentOrParent, async (req, res) => {
       limit = 10 
     } = req.query;
 
-    // Build filter object (list all active student profiles; verification is a trust signal, not a browse gate)
-    const filter = {
-      userType: 'student',
-      isActive: true,
-    };
+    // Only approved student profiles should be discoverable by families.
+    const filter = approvedStudentFilter();
 
     // Add location filter
     if (location) {
@@ -85,11 +83,9 @@ router.get('/students', auth, requireStudentOrParent, async (req, res) => {
 // Get single student profile
 router.get('/students/:id', auth, requireStudentOrParent, async (req, res) => {
   try {
-    const student = await User.findOne({
-      _id: req.params.id,
-      userType: 'student',
-      isActive: true
-    }).select('-password -pushSubscriptions');
+    const student = await User.findOne(
+      approvedStudentFilter({ _id: req.params.id })
+    ).select('-password -pushSubscriptions');
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
@@ -111,10 +107,7 @@ router.get('/search', auth, requireStudentOrParent, async (req, res) => {
       return res.status(400).json({ error: 'Search query required' });
     }
 
-    const filter = {
-      userType: 'student',
-      isActive: true,
-    };
+    const filter = approvedStudentFilter();
 
     // Text search
     if (q) {

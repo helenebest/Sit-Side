@@ -7,6 +7,7 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const { approvedStudentFilter } = require('../lib/studentVisibility');
 const router = express.Router();
 
 // Create new booking
@@ -38,14 +39,10 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
     }
 
     // Get student information
-    const student = await User.findOne({
-      _id: studentId,
-      userType: 'student',
-      isActive: true
-    });
+    const student = await User.findOne(approvedStudentFilter({ _id: studentId }));
 
     if (!student) {
-      return res.status(404).json({ error: 'Student not found' });
+      return res.status(404).json({ error: 'Student not found or not approved for booking' });
     }
 
     const serviceType =
@@ -197,6 +194,11 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
   try {
     const { studentId } = req.params;
     const { from, to } = req.query;
+
+    const student = await User.findOne(approvedStudentFilter({ _id: studentId })).select('_id');
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
 
     const filter = { student: studentId };
 
