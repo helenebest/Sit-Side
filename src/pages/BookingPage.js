@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { SERVICE_TYPES } from '../constants/serviceOfferings';
 import { getEffectiveHourlyRateForStudent } from '../utils/serviceRatesClient';
+import { calculateBookingTotal } from '../utils/bookingDuration';
 import {
   tutoringOfferingsFromUser,
   coachingOfferingsFromUser,
@@ -174,12 +175,8 @@ const BookingPage = () => {
   const calculateTotal = () => {
     if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
 
-    const start = new Date(`2000-01-01T${bookingData.startTime}`);
-    const end = new Date(`2000-01-01T${bookingData.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
-
     const rate = getEffectiveHourlyRateForStudent(student, bookingData.serviceType);
-    return Math.round(hours * rate * 100) / 100;
+    return calculateBookingTotal(bookingData.startTime, bookingData.endTime, rate);
   };
 
   const handleSubmit = async () => {
