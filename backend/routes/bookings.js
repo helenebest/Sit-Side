@@ -7,6 +7,10 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const {
+  PUBLIC_STUDENT_CALENDAR_STATUSES,
+  publicStudentCalendarBooking,
+} = require('../lib/studentCalendarBookings');
 const router = express.Router();
 
 // Create new booking
@@ -197,8 +201,18 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
   try {
     const { studentId } = req.params;
     const { from, to } = req.query;
+    const requesterIsStudent = req.user.userType === 'student';
+    const requesterOwnsCalendar = requesterIsStudent && req.user._id.toString() === studentId;
+
+    if (requesterIsStudent && !requesterOwnsCalendar) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     const filter = { student: studentId };
+
+    if (!requesterOwnsCalendar) {
+      filter.status = { $in: PUBLIC_STUDENT_CALENDAR_STATUSES };
+    }
 
     if (from || to) {
       filter.date = {};
@@ -210,14 +224,24 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       }
     }
 
-    const bookings = await Booking.find(filter)
-      .populate([
+    const query = Booking.find(filter).sort({ date: 1, startTime: 1 });
+
+    if (requesterOwnsCalendar) {
+      query.populate([
         { path: 'student', select: 'firstName lastName' },
         { path: 'parent', select: 'firstName lastName' },
-      ])
-      .sort({ date: 1, startTime: 1 });
+      ]);
+    } else {
+      query.select('date startTime endTime status serviceType');
+    }
 
-    res.json({ bookings });
+    const bookings = await query;
+
+    res.json({
+      bookings: requesterOwnsCalendar
+        ? bookings
+        : bookings.map(publicStudentCalendarBooking),
+    });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });
