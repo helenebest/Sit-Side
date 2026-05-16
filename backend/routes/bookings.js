@@ -7,6 +7,10 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const {
+  canRequestStudentCalendar,
+  serializeStudentCalendarBooking,
+} = require('../lib/studentCalendarAccess');
 const router = express.Router();
 
 // Create new booking
@@ -198,6 +202,10 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     const { studentId } = req.params;
     const { from, to } = req.query;
 
+    if (!canRequestStudentCalendar(req.user, studentId)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const filter = { student: studentId };
 
     if (from || to) {
@@ -215,9 +223,14 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
         { path: 'student', select: 'firstName lastName' },
         { path: 'parent', select: 'firstName lastName' },
       ])
-      .sort({ date: 1, startTime: 1 });
+      .sort({ date: 1, startTime: 1 })
+      .lean();
 
-    res.json({ bookings });
+    res.json({
+      bookings: bookings.map((booking) =>
+        serializeStudentCalendarBooking(booking, req.user, studentId)
+      ),
+    });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });
