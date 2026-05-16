@@ -1,4 +1,5 @@
 const mongoose = require('../mongoose');
+const { calculateBookingTotalAmount, isValidBookingTime } = require('../lib/bookingTotals');
 
 const bookingSchema = new mongoose.Schema({
   student: { 
@@ -91,15 +92,20 @@ const bookingSchema = new mongoose.Schema({
 // totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
 // Mongoose 8+: sync hooks omit `next`; calling next() throws "next is not a function" in some runtimes.
 bookingSchema.pre('validate', function () {
-  const rate = this.hourlyRate;
-  if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
-    const start = new Date(`2000-01-01T${this.startTime}`);
-    const end = new Date(`2000-01-01T${this.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
-    if (Number.isFinite(hours)) {
-      const raw = hours * Number(rate);
-      this.totalAmount = Math.round(Math.max(0, raw) * 100) / 100;
-    }
+  if (this.startTime && !isValidBookingTime(this.startTime)) {
+    this.invalidate('startTime', 'Start time must be in HH:MM format');
+  }
+  if (this.endTime && !isValidBookingTime(this.endTime)) {
+    this.invalidate('endTime', 'End time must be in HH:MM format');
+  }
+
+  const totalAmount = calculateBookingTotalAmount({
+    startTime: this.startTime,
+    endTime: this.endTime,
+    hourlyRate: this.hourlyRate,
+  });
+  if (totalAmount != null) {
+    this.totalAmount = totalAmount;
   }
   if (this.totalAmount == null || Number.isNaN(this.totalAmount)) {
     this.totalAmount = 0;
