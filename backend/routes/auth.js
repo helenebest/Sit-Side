@@ -4,6 +4,7 @@ const User = require('../models/User');
 const { getJwtSecret } = require('../lib/jwtSecret');
 const { auth } = require('../middleware/auth');
 const { notifyAdminPendingUserApproval } = require('../services/slack');
+const { isPublicRegistrationUserType } = require('../lib/registrationPolicy');
 const {
   normalizedTutoringOfferings,
   normalizedCoachingOfferings,
@@ -87,7 +88,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Validate userType
-    if (!['student', 'parent', 'admin'].includes(userType)) {
+    if (!isPublicRegistrationUserType(userType)) {
       return res.status(400).json({ error: 'Invalid user type' });
     }
 
@@ -138,10 +139,6 @@ router.post('/register', async (req, res) => {
     // Add parent-specific fields
     if (userType === 'parent') {
       userData.emergencyContact = emergencyContact?.trim();
-    }
-
-    if (userType === 'admin') {
-      userData.isVerified = true;
     }
 
     // Create user

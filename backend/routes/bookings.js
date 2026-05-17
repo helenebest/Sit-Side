@@ -7,6 +7,10 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const {
+  canViewDetailedStudentCalendar,
+  publicCalendarBookingShape,
+} = require('../lib/bookingVisibility');
 const router = express.Router();
 
 // Create new booking
@@ -197,6 +201,11 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
   try {
     const { studentId } = req.params;
     const { from, to } = req.query;
+    const canViewDetails = canViewDetailedStudentCalendar(req.user, studentId);
+
+    if (req.user.userType === 'student' && !canViewDetails) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     const filter = { student: studentId };
 
@@ -210,14 +219,21 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       }
     }
 
-    const bookings = await Booking.find(filter)
-      .populate([
+    let query = Booking.find(filter).sort({ date: 1, startTime: 1 });
+    if (canViewDetails) {
+      query = query.populate([
         { path: 'student', select: 'firstName lastName' },
         { path: 'parent', select: 'firstName lastName' },
-      ])
-      .sort({ date: 1, startTime: 1 });
+      ]);
+    } else {
+      query = query.select('_id date startTime endTime status serviceType');
+    }
 
-    res.json({ bookings });
+    const bookings = await query;
+
+    res.json({
+      bookings: canViewDetails ? bookings : bookings.map(publicCalendarBookingShape),
+    });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });
