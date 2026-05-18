@@ -7,6 +7,10 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const {
+  CALENDAR_BUSY_STATUSES,
+  publicCalendarBookingShape,
+} = require('../lib/bookingCalendarVisibility');
 const router = express.Router();
 
 // Create new booking
@@ -198,7 +202,10 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     const { studentId } = req.params;
     const { from, to } = req.query;
 
-    const filter = { student: studentId };
+    const filter = {
+      student: studentId,
+      status: { $in: CALENDAR_BUSY_STATUSES },
+    };
 
     if (from || to) {
       filter.date = {};
@@ -210,14 +217,27 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       }
     }
 
-    const bookings = await Booking.find(filter)
-      .populate([
+    const isOwnStudentCalendar =
+      req.user.userType === 'student' && req.user._id.toString() === studentId;
+
+    const query = Booking.find(filter).sort({ date: 1, startTime: 1 });
+
+    if (isOwnStudentCalendar) {
+      query.populate([
         { path: 'student', select: 'firstName lastName' },
         { path: 'parent', select: 'firstName lastName' },
-      ])
-      .sort({ date: 1, startTime: 1 });
+      ]);
+    } else {
+      query.select('_id date startTime endTime');
+    }
 
-    res.json({ bookings });
+    const bookings = await query;
+
+    res.json({
+      bookings: isOwnStudentCalendar
+        ? bookings
+        : bookings.map(publicCalendarBookingShape),
+    });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });
