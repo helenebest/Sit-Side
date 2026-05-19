@@ -1,5 +1,11 @@
 const mongoose = require('../mongoose');
 
+function timeStringToMinutes(value) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || ''));
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 const bookingSchema = new mongoose.Schema({
   student: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -88,14 +94,28 @@ const bookingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+bookingSchema.path('startTime').validate(function (value) {
+  return timeStringToMinutes(value) !== null;
+}, 'Start time must use HH:MM format');
+
+bookingSchema.path('endTime').validate(function (value) {
+  const start = timeStringToMinutes(this.startTime);
+  const end = timeStringToMinutes(value);
+  return start === null || end === null || end !== start;
+}, 'End time must not equal start time');
+
 // totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
 // Mongoose 8+: sync hooks omit `next`; calling next() throws "next is not a function" in some runtimes.
 bookingSchema.pre('validate', function () {
   const rate = this.hourlyRate;
   if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
-    const start = new Date(`2000-01-01T${this.startTime}`);
-    const end = new Date(`2000-01-01T${this.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
+    const start = timeStringToMinutes(this.startTime);
+    const end = timeStringToMinutes(this.endTime);
+    let minutes = start !== null && end !== null ? end - start : NaN;
+    if (Number.isFinite(minutes) && minutes < 0) {
+      minutes += 24 * 60;
+    }
+    const hours = Number.isFinite(minutes) ? minutes / 60 : NaN;
     if (Number.isFinite(hours)) {
       const raw = hours * Number(rate);
       this.totalAmount = Math.round(Math.max(0, raw) * 100) / 100;
