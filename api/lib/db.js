@@ -110,7 +110,8 @@ function logAuthHint(err) {
  * Clears cache on failure so the next request can retry after you fix Atlas/Vercel env.
  */
 async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) {
+  const readyState = mongoose.connection.readyState;
+  if (readyState === 1) {
     return;
   }
 
@@ -118,6 +119,16 @@ async function connectToDatabase() {
   const connectOpts = buildConnectOptions();
 
   const g = globalThis;
+  if (readyState === 3) {
+    try {
+      await mongoose.disconnect();
+    } catch {
+      /* ignore */
+    }
+    g[GLOBAL_KEY] = null;
+  } else if (readyState !== 2) {
+    g[GLOBAL_KEY] = null;
+  }
   if (!g[GLOBAL_KEY]) {
     g[GLOBAL_KEY] = mongoose.connect(uri, connectOpts).catch(async (err) => {
       g[GLOBAL_KEY] = null;

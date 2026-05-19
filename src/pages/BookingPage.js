@@ -174,9 +174,15 @@ const BookingPage = () => {
   const calculateTotal = () => {
     if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
 
-    const start = new Date(`2000-01-01T${bookingData.startTime}`);
-    const end = new Date(`2000-01-01T${bookingData.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
+    const toMinutes = (time) => {
+      const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time || '');
+      return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    };
+    const start = toMinutes(bookingData.startTime);
+    const end = toMinutes(bookingData.endTime);
+    if (start === null || end === null || start === end) return 0;
+    const minutes = end > start ? end - start : end - start + 24 * 60;
+    const hours = minutes / 60;
 
     const rate = getEffectiveHourlyRateForStudent(student, bookingData.serviceType);
     return Math.round(hours * rate * 100) / 100;

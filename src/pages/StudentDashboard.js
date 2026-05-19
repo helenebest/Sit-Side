@@ -68,6 +68,11 @@ const StudentDashboard = () => {
       hourlyRateCoach: user.hourlyRateCoach ?? prev.hourlyRateCoach,
       tutoringOfferings: tutoringOfferingsFromUser(user),
       coachingOfferings: coachingOfferingsFromUser(user),
+      experience: user.experience ?? prev.experience,
+      certifications: Array.isArray(user.certifications) ? user.certifications : prev.certifications,
+      location: user.location ?? prev.location,
+      availability: user.availability ?? prev.availability,
+      slackUserId: user.slackUserId ?? prev.slackUserId,
     }));
   }, [user]);
 
@@ -228,9 +233,14 @@ const StudentDashboard = () => {
     const isoDates = Array.from(currentSet).map((ts) => new Date(ts).toISOString());
     setSavingUnavailableDates(true);
     try {
-      await updateUnavailableDates(isoDates);
+      const result = await updateUnavailableDates(isoDates);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update unavailable dates');
+      }
       setDayAvailabilityDialogOpen(false);
       setSelectedCalendarDate(null);
+    } catch (error) {
+      setBookingsError(error.message || 'Failed to update unavailable dates.');
     } finally {
       setSavingUnavailableDates(false);
     }

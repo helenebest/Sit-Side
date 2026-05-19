@@ -124,12 +124,17 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       console.error('Slack notifyBookingCreated error:', err);
     });
 
-    const emailNotification = await sendBookingConfirmationEmails(booking);
+    sendBookingConfirmationEmails(booking).catch((err) => {
+      console.error('Booking confirmation email error:', err);
+    });
 
     res.status(201).json({
       booking,
       message: 'Booking request created successfully',
-      emailNotification,
+      emailNotification: {
+        status: 'queued',
+        hint: 'Confirmation email is being sent in the background.',
+      },
     });
 
   } catch (error) {
@@ -208,6 +213,18 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       if (to) {
         filter.date.$lte = new Date(to);
       }
+    }
+
+    if (req.user.userType === 'student' && studentId !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (req.user.userType === 'parent') {
+      const bookings = await Booking.find(filter)
+        .select('student date startTime endTime status serviceType')
+        .sort({ date: 1, startTime: 1 });
+
+      return res.json({ bookings });
     }
 
     const bookings = await Booking.find(filter)
