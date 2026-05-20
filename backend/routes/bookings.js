@@ -7,6 +7,7 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const { bookingForStudentCalendar } = require('../lib/bookingVisibility');
 const router = express.Router();
 
 // Create new booking
@@ -217,7 +218,9 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       ])
       .sort({ date: 1, startTime: 1 });
 
-    res.json({ bookings });
+    res.json({
+      bookings: bookings.map((booking) => bookingForStudentCalendar(booking, req.user)),
+    });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });
