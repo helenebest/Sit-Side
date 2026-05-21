@@ -198,6 +198,10 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     const { studentId } = req.params;
     const { from, to } = req.query;
 
+    if (req.user.userType === 'student' && req.user._id.toString() !== studentId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const filter = { student: studentId };
 
     if (from || to) {
@@ -210,12 +214,50 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       }
     }
 
-    const bookings = await Booking.find(filter)
-      .populate([
+    const query = Booking.find(filter).sort({ date: 1, startTime: 1 });
+
+    if (req.user.userType === 'student') {
+      query.populate([
         { path: 'student', select: 'firstName lastName' },
         { path: 'parent', select: 'firstName lastName' },
-      ])
-      .sort({ date: 1, startTime: 1 });
+      ]);
+    } else {
+      query
+        .select('student parent date startTime endTime status serviceType')
+        .populate({ path: 'parent', select: 'firstName lastName' });
+    }
+
+    const bookings = await query;
+
+    if (req.user.userType === 'parent') {
+      const parentId = req.user._id.toString();
+      const redactedBookings = bookings.map((booking) => {
+        const parent = booking.parent;
+        const isOwnBooking = parent?._id?.toString() === parentId;
+        const publicBooking = {
+          _id: booking._id,
+          id: booking._id,
+          student: booking.student,
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          status: booking.status,
+          serviceType: booking.serviceType,
+        };
+
+        if (isOwnBooking) {
+          publicBooking.parent = {
+            _id: parent._id,
+            firstName: parent.firstName,
+            lastName: parent.lastName,
+          };
+        }
+
+        return publicBooking;
+      });
+
+      return res.json({ bookings: redactedBookings });
+    }
 
     res.json({ bookings });
   } catch (error) {

@@ -86,8 +86,9 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
-    // Validate userType
-    if (!['student', 'parent', 'admin'].includes(userType)) {
+    // Public registration is limited to end-user roles. Admins must be created through
+    // the controlled seed/admin provisioning path, not by trusting request input.
+    if (!['student', 'parent'].includes(userType)) {
       return res.status(400).json({ error: 'Invalid user type' });
     }
 
@@ -138,10 +139,6 @@ router.post('/register', async (req, res) => {
     // Add parent-specific fields
     if (userType === 'parent') {
       userData.emergencyContact = emergencyContact?.trim();
-    }
-
-    if (userType === 'admin') {
-      userData.isVerified = true;
     }
 
     // Create user

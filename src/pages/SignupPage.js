@@ -8,13 +8,15 @@ const SignupPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { register } = useAuth();
+  const requestedType = searchParams.get('type');
+  const initialUserType = ['student', 'parent'].includes(requestedType) ? requestedType : 'student';
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    userType: searchParams.get('type') || 'student',
+    userType: initialUserType,
     phone: '',
     school: '',
     grade: '',
@@ -80,6 +82,10 @@ const SignupPage = () => {
       return;
     }
 
+    const userType = ['student', 'parent'].includes(formData.userType)
+      ? formData.userType
+      : 'student';
+
     // Prepare registration data
     const registrationData = {
       firstName: formData.firstName,
@@ -87,18 +93,18 @@ const SignupPage = () => {
       email: formData.email,
       password: formData.password,
       phone: formData.phone,
-      userType: formData.userType,
+      userType,
     };
 
     // Add user type specific fields
-    if (formData.userType === 'student') {
+    if (userType === 'student') {
       registrationData.grade = parseInt(formData.grade);
       registrationData.school = formData.school;
       registrationData.bio = formData.bio;
       registrationData.hourlyRate = parseInt(formData.hourlyRate);
       registrationData.experience = formData.experience;
       registrationData.location = formData.location;
-    } else if (formData.userType === 'parent') {
+    } else if (userType === 'parent') {
       registrationData.emergencyContact = formData.emergencyContact;
     }
 
@@ -106,7 +112,7 @@ const SignupPage = () => {
       const result = await register(registrationData);
       
       if (result.success) {
-        navigate(`/${formData.userType}`);
+        navigate(`/${userType}`);
       } else {
         const errorMsg = result.error || 'Registration failed. Please try again.';
         setError(errorMsg);
