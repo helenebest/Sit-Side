@@ -5,7 +5,7 @@ const { auth, requireStudentOrParent } = require('../middleware/auth');
 const { notifyBookingCreated, sendBookingMessageToStudent } = require('../services/slack');
 const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
-const { SERVICE_TYPES } = require('../constants/serviceOfferings');
+const { resolveBookingServiceType } = require('../lib/bookingServiceType');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
 const router = express.Router();
 
@@ -22,7 +22,6 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       specialInstructions,
       emergencyContact,
       parentMessage,
-      serviceType: rawServiceType,
     } = req.body;
 
     // Validate required fields
@@ -48,8 +47,13 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const serviceType =
-      rawServiceType && SERVICE_TYPES.includes(rawServiceType) ? rawServiceType : 'babysitter';
+    const serviceTypeResult = resolveBookingServiceType(req.body);
+    if (serviceTypeResult.error) {
+      return res.status(400).json({
+        error: serviceTypeResult.error,
+      });
+    }
+    const { serviceType } = serviceTypeResult;
 
     let tutorSnap = null;
     let coachSnap = null;
