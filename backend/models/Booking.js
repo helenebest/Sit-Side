@@ -1,4 +1,5 @@
 const mongoose = require('../mongoose');
+const { calculateBookingHours } = require('../lib/bookingDuration');
 
 const bookingSchema = new mongoose.Schema({
   student: { 
@@ -91,19 +92,36 @@ const bookingSchema = new mongoose.Schema({
 // totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
 // Mongoose 8+: sync hooks omit `next`; calling next() throws "next is not a function" in some runtimes.
 bookingSchema.pre('validate', function () {
-  const rate = this.hourlyRate;
-  if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
-    const start = new Date(`2000-01-01T${this.startTime}`);
-    const end = new Date(`2000-01-01T${this.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
-    if (Number.isFinite(hours)) {
-      const raw = hours * Number(rate);
-      this.totalAmount = Math.round(Math.max(0, raw) * 100) / 100;
-    }
+  const shouldCalculate =
+    this.isNew ||
+    this.isModified('startTime') ||
+    this.isModified('endTime') ||
+    this.isModified('hourlyRate') ||
+    this.isModified('totalAmount') ||
+    this.totalAmount == null;
+
+  if (!shouldCalculate) {
+    return;
   }
-  if (this.totalAmount == null || Number.isNaN(this.totalAmount)) {
+
+  const rate = Number(this.hourlyRate);
+  const hours = calculateBookingHours(this.startTime, this.endTime);
+  if (hours == null) {
+    this.invalidate(
+      'endTime',
+      'Booking end time must differ from start time; use an earlier end time for an overnight booking.'
+    );
     this.totalAmount = 0;
+    return;
   }
+
+  if (!Number.isFinite(rate) || rate <= 0) {
+    this.invalidate('hourlyRate', 'Hourly rate must be greater than zero.');
+    this.totalAmount = 0;
+    return;
+  }
+
+  this.totalAmount = Math.round(hours * rate * 100) / 100;
 });
 
 // Update timestamp on save

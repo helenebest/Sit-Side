@@ -118,6 +118,17 @@ const normalizeUserFromApi = (u) => {
   return { ...u, id };
 };
 
+const isTransientAuthError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('network') ||
+    message.includes('could not reach') ||
+    message.includes('cannot connect')
+  );
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -130,14 +141,14 @@ export const AuthProvider = ({ children }) => {
       
       const token = safeLocalStorage.getItem('token');
       if (token) {
-        // Verify auth in background (non-blocking) with timeout
+        // Hydrate the full profile shape used by dashboards and booking forms.
         try {
-          const data = await apiRequest('/auth/verify');
+          const data = await apiRequest('/auth/me');
           setUser(normalizeUserFromApi(data.user));
         } catch (error) {
           console.error('Auth verification failed:', error);
           // Only remove token on clear auth errors, not network errors
-          if (!error.message.includes('timeout') && !error.message.includes('Network error')) {
+          if (!isTransientAuthError(error)) {
             safeLocalStorage.removeItem('token');
           }
         }
