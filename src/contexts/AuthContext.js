@@ -130,9 +130,9 @@ export const AuthProvider = ({ children }) => {
       
       const token = safeLocalStorage.getItem('token');
       if (token) {
-        // Verify auth in background (non-blocking) with timeout
+        // Load the full profile so refreshes do not replace state with a truncated /verify shape.
         try {
-          const data = await apiRequest('/auth/verify');
+          const data = await apiRequest('/auth/me');
           setUser(normalizeUserFromApi(data.user));
         } catch (error) {
           console.error('Auth verification failed:', error);
@@ -359,6 +359,14 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         body: JSON.stringify({ certification }),
       });
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              certifications: data?.certifications ?? prev.certifications,
+            }
+          : prev
+      );
 
       return { success: true, data };
     } catch (error) {

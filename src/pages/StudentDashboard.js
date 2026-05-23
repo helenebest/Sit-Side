@@ -23,8 +23,10 @@ const StudentDashboard = () => {
     getMyBookings,
     sendBookingMessage,
     updateUnavailableDates,
+    updateAvailability,
     updateBookingStatus,
     updateProfile,
+    addCertification,
   } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -56,6 +58,10 @@ const StudentDashboard = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [certificationSaving, setCertificationSaving] = useState(false);
+  const [certificationError, setCertificationError] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -68,6 +74,11 @@ const StudentDashboard = () => {
       hourlyRateCoach: user.hourlyRateCoach ?? prev.hourlyRateCoach,
       tutoringOfferings: tutoringOfferingsFromUser(user),
       coachingOfferings: coachingOfferingsFromUser(user),
+      experience: user.experience ?? prev.experience,
+      certifications: Array.isArray(user.certifications) ? user.certifications : prev.certifications,
+      location: user.location ?? prev.location,
+      availability: user.availability ?? prev.availability,
+      slackUserId: user.slackUserId ?? prev.slackUserId,
     }));
   }, [user]);
 
@@ -160,37 +171,71 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleAvailabilityUpdate = () => {
+  const persistAvailability = async (nextAvailability, previousAvailability) => {
+    setAvailabilitySaving(true);
+    setAvailabilityError('');
+    try {
+      const result = await updateAvailability(nextAvailability);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update availability.');
+      }
+      return true;
+    } catch (error) {
+      if (previousAvailability) {
+        setProfileData((prev) => ({
+          ...prev,
+          availability: previousAvailability,
+        }));
+      }
+      setAvailabilityError(error.message || 'Failed to update availability.');
+      return false;
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  };
+
+  const handleAvailabilityUpdate = async () => {
     if (!newAvailability.day || !newAvailability.timeSlot) {
       return;
     }
 
+    const previousAvailability = profileData.availability;
+    const nextAvailability = {
+      ...previousAvailability,
+      [newAvailability.day]: {
+        ...previousAvailability[newAvailability.day],
+        [newAvailability.timeSlot]: true,
+      },
+    };
+
     setProfileData((prev) => ({
       ...prev,
-      availability: {
-        ...prev.availability,
-        [newAvailability.day]: {
-          ...prev.availability[newAvailability.day],
-          [newAvailability.timeSlot]: true,
-        },
-      },
+      availability: nextAvailability,
     }));
 
-    setNewAvailability({ day: '', timeSlot: '', enabled: true });
-    setAvailabilityDialogOpen(false);
+    const saved = await persistAvailability(nextAvailability, previousAvailability);
+    if (saved) {
+      setNewAvailability({ day: '', timeSlot: '', enabled: true });
+      setAvailabilityDialogOpen(false);
+    }
   };
 
-  const handleAvailabilityToggle = (day, timeSlot) => {
+  const handleAvailabilityToggle = async (day, timeSlot) => {
+    const previousAvailability = profileData.availability;
+    const nextAvailability = {
+      ...previousAvailability,
+      [day]: {
+        ...previousAvailability[day],
+        [timeSlot]: !previousAvailability[day][timeSlot],
+      },
+    };
+
     setProfileData((prev) => ({
       ...prev,
-      availability: {
-        ...prev.availability,
-        [day]: {
-          ...prev.availability[day],
-          [timeSlot]: !prev.availability[day][timeSlot],
-        },
-      },
+      availability: nextAvailability,
     }));
+
+    await persistAvailability(nextAvailability, previousAvailability);
   };
 
   const isDateUnavailable = (date) => {
@@ -236,19 +281,34 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleCertificationAdd = () => {
+  const handleCertificationAdd = async () => {
     const trimmed = newCertification.trim();
     if (!trimmed) return;
 
-    setProfileData((prev) => ({
-      ...prev,
-      certifications: prev.certifications.includes(trimmed)
-        ? prev.certifications
-        : [...prev.certifications, trimmed],
-    }));
+    setCertificationSaving(true);
+    setCertificationError('');
+    try {
+      const result = await addCertification(trimmed);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add certification.');
+      }
 
-    setNewCertification('');
-    setCertificationDialogOpen(false);
+      setProfileData((prev) => ({
+        ...prev,
+        certifications: result.data?.certifications ?? (
+          prev.certifications.includes(trimmed)
+            ? prev.certifications
+            : [...prev.certifications, trimmed]
+        ),
+      }));
+
+      setNewCertification('');
+      setCertificationDialogOpen(false);
+    } catch (error) {
+      setCertificationError(error.message || 'Failed to add certification.');
+    } finally {
+      setCertificationSaving(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -623,9 +683,12 @@ const StudentDashboard = () => {
                   <p className="text-sm text-neutral-light mt-1">
                     Use this to set your general weekly pattern (mornings / afternoons / evenings).
                   </p>
+                  {availabilityError && (
+                    <p className="mt-2 text-sm text-red-600">{availabilityError}</p>
+                  )}
                 </div>
-                <PrimaryButton onClick={() => setAvailabilityDialogOpen(true)}>
-                  ➕ Add Time Slot
+                <PrimaryButton onClick={() => setAvailabilityDialogOpen(true)} disabled={availabilitySaving}>
+                  {availabilitySaving ? 'Saving…' : '➕ Add Time Slot'}
                 </PrimaryButton>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -638,6 +701,7 @@ const StudentDashboard = () => {
                           type="checkbox"
                           checked={!!available}
                           onChange={() => handleAvailabilityToggle(day, timeSlot)}
+                          disabled={availabilitySaving}
                           className="mr-2"
                         />
                         <span className="text-sm text-neutral-dark capitalize">{timeSlot}</span>
@@ -1107,7 +1171,7 @@ const StudentDashboard = () => {
                 Cancel
               </OutlineButton>
               <PrimaryButton onClick={handleAvailabilityUpdate} className="flex-1">
-                Add
+                {availabilitySaving ? 'Saving…' : 'Add'}
               </PrimaryButton>
             </div>
           </div>
@@ -1185,15 +1249,25 @@ const StudentDashboard = () => {
                   placeholder="e.g. CPR Certified"
                   value={newCertification}
                   onChange={(e) => setNewCertification(e.target.value)}
+                  disabled={certificationSaving}
                 />
               </div>
+              {certificationError && (
+                <div className="text-sm text-red-600">
+                  {certificationError}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
-              <OutlineButton onClick={() => setCertificationDialogOpen(false)} className="flex-1">
+              <OutlineButton
+                onClick={() => setCertificationDialogOpen(false)}
+                className="flex-1"
+                disabled={certificationSaving}
+              >
                 Cancel
               </OutlineButton>
-              <PrimaryButton onClick={handleCertificationAdd} className="flex-1">
-                Add
+              <PrimaryButton onClick={handleCertificationAdd} className="flex-1" disabled={certificationSaving}>
+                {certificationSaving ? 'Saving…' : 'Add'}
               </PrimaryButton>
             </div>
           </div>

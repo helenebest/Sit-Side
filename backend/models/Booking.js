@@ -88,27 +88,37 @@ const bookingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+function calculateBookingTotalAmount(startTime, endTime, hourlyRate) {
+  const rate = Number(hourlyRate);
+  if (!startTime || !endTime || !Number.isFinite(rate)) {
+    return 0;
+  }
+
+  const start = new Date(`2000-01-01T${startTime}`);
+  const end = new Date(`2000-01-01T${endTime}`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 0;
+  }
+
+  let hours = (end - start) / (1000 * 60 * 60);
+  if (hours <= 0) {
+    hours += 24;
+  }
+
+  return Math.round(Math.max(0, hours * rate) * 100) / 100;
+}
+
 // totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
 // Mongoose 8+: sync hooks omit `next`; calling next() throws "next is not a function" in some runtimes.
 bookingSchema.pre('validate', function () {
-  const rate = this.hourlyRate;
-  if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
-    const start = new Date(`2000-01-01T${this.startTime}`);
-    const end = new Date(`2000-01-01T${this.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
-    if (Number.isFinite(hours)) {
-      const raw = hours * Number(rate);
-      this.totalAmount = Math.round(Math.max(0, raw) * 100) / 100;
-    }
-  }
-  if (this.totalAmount == null || Number.isNaN(this.totalAmount)) {
-    this.totalAmount = 0;
-  }
+  this.totalAmount = calculateBookingTotalAmount(this.startTime, this.endTime, this.hourlyRate);
 });
 
 // Update timestamp on save
 bookingSchema.pre('save', function () {
   this.updatedAt = new Date();
 });
+
+bookingSchema.statics.calculateBookingTotalAmount = calculateBookingTotalAmount;
 
 module.exports = mongoose.model('Booking', bookingSchema);
