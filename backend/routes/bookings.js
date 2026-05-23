@@ -198,6 +198,13 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     const { studentId } = req.params;
     const { from, to } = req.query;
 
+    const isOwnStudentCalendar =
+      req.user.userType === 'student' && studentId === req.user._id.toString();
+
+    if (req.user.userType === 'student' && !isOwnStudentCalendar) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const filter = { student: studentId };
 
     if (from || to) {
@@ -208,6 +215,22 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       if (to) {
         filter.date.$lte = new Date(to);
       }
+    }
+
+    if (req.user.userType === 'parent') {
+      filter.status = { $nin: ['cancelled', 'rejected'] };
+      const bookings = await Booking.find(filter)
+        .select('date startTime endTime')
+        .sort({ date: 1, startTime: 1 });
+
+      return res.json({
+        bookings: bookings.map((booking, index) => ({
+          id: `busy-${booking.date ? booking.date.toISOString() : 'unknown'}-${booking.startTime}-${booking.endTime}-${index}`,
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        })),
+      });
     }
 
     const bookings = await Booking.find(filter)
