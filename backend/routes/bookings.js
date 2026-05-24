@@ -7,6 +7,7 @@ const { sendBookingConfirmationEmails } = require('../services/email');
 const { resolveHourlyRateForService } = require('../lib/serviceRates');
 const { SERVICE_TYPES } = require('../constants/serviceOfferings');
 const { resolveTutorBookingSnapshot, resolveCoachBookingSnapshot } = require('../lib/studentOfferings');
+const { getBookingDurationHours } = require('../lib/bookingTime');
 const router = express.Router();
 
 // Create new booking
@@ -30,6 +31,11 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       return res.status(400).json({
         error: 'Missing required fields: studentId, date, startTime, endTime, numberOfChildren, emergencyContact'
       });
+    }
+
+    const bookingDate = new Date(date);
+    if (Number.isNaN(bookingDate.getTime()) || !getBookingDurationHours(bookingDate, startTime, endTime)) {
+      return res.status(400).json({ error: 'Invalid booking date or time range' });
     }
 
     // Only parents can create bookings
@@ -75,7 +81,7 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
     const bookingPayload = {
       student: studentId,
       parent: req.user._id,
-      date: new Date(date),
+      date: bookingDate,
       startTime,
       endTime,
       numberOfChildren,
@@ -124,12 +130,17 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
       console.error('Slack notifyBookingCreated error:', err);
     });
 
-    const emailNotification = await sendBookingConfirmationEmails(booking);
+    sendBookingConfirmationEmails(booking).catch((err) => {
+      console.error('Booking confirmation email error:', err);
+    });
 
     res.status(201).json({
       booking,
       message: 'Booking request created successfully',
-      emailNotification,
+      emailNotification: {
+        status: 'queued',
+        hint: 'Booking saved. Confirmation emails will be sent shortly.',
+      },
     });
 
   } catch (error) {
@@ -210,14 +221,32 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       }
     }
 
+    const isOwnCalendar =
+      req.user.userType === 'student' && req.user._id.toString() === studentId.toString();
+
+    const populate = [{ path: 'student', select: 'firstName lastName' }];
+    if (isOwnCalendar) {
+      populate.push({ path: 'parent', select: 'firstName lastName' });
+    }
+
     const bookings = await Booking.find(filter)
-      .populate([
-        { path: 'student', select: 'firstName lastName' },
-        { path: 'parent', select: 'firstName lastName' },
-      ])
+      .populate(populate)
       .sort({ date: 1, startTime: 1 });
 
-    res.json({ bookings });
+    if (isOwnCalendar) {
+      return res.json({ bookings });
+    }
+
+    res.json({
+      bookings: bookings.map((booking) => ({
+        _id: booking._id,
+        date: booking.date,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        status: booking.status,
+        serviceType: booking.serviceType,
+      })),
+    });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });

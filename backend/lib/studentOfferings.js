@@ -4,12 +4,15 @@ function normalizedTutoringOfferings(user) {
   if (!user) return [];
   const arr = user.tutoringOfferings;
   if (Array.isArray(arr) && arr.length > 0) {
-    return arr
+    const normalized = arr
       .map((o) => ({
         subject: (o.subject || '').trim(),
         detail: (o.detail || '').trim(),
       }))
       .filter((o) => o.subject && TUTORING_SUBJECTS.includes(o.subject));
+    if (normalized.length > 0) {
+      return normalized;
+    }
   }
   const legacy = (user.tutoringSubject || '').trim();
   if (!legacy || !TUTORING_SUBJECTS.includes(legacy)) return [];
@@ -25,12 +28,15 @@ function normalizedCoachingOfferings(user) {
   if (!user) return [];
   const arr = user.coachingOfferings;
   if (Array.isArray(arr) && arr.length > 0) {
-    return arr
+    const normalized = arr
       .map((o) => ({
         sport: (o.sport || '').trim(),
         detail: (o.detail || '').trim(),
       }))
       .filter((o) => o.sport && COACHING_SPORTS.includes(o.sport));
+    if (normalized.length > 0) {
+      return normalized;
+    }
   }
   const legacy = (user.coachingSport || '').trim();
   if (!legacy || !COACHING_SPORTS.includes(legacy)) return [];
