@@ -17,11 +17,37 @@ import {
 const TUTORING_PRESET = TUTORING_SUBJECTS.filter((s) => s !== 'Other');
 const COACHING_PRESET = COACHING_SPORTS.filter((s) => s !== 'Other');
 
+const DEFAULT_AVAILABILITY = {
+  monday: { morning: false, afternoon: true, evening: true },
+  tuesday: { morning: false, afternoon: true, evening: true },
+  wednesday: { morning: false, afternoon: true, evening: true },
+  thursday: { morning: false, afternoon: true, evening: true },
+  friday: { morning: false, afternoon: true, evening: true },
+  saturday: { morning: true, afternoon: true, evening: true },
+  sunday: { morning: true, afternoon: true, evening: false },
+};
+
+const profileDataFromUser = (user) => ({
+  bio: user?.bio || '',
+  hourlyRate: user?.hourlyRate ?? 15,
+  useSameRateForAllServices: user?.useSameRateForAllServices !== false,
+  hourlyRateTutor: user?.hourlyRateTutor ?? '',
+  hourlyRateCoach: user?.hourlyRateCoach ?? '',
+  tutoringOfferings: tutoringOfferingsFromUser(user || {}),
+  coachingOfferings: coachingOfferingsFromUser(user || {}),
+  experience: user?.experience || '',
+  certifications: Array.isArray(user?.certifications) ? user.certifications : [],
+  location: user?.location || '',
+  availability: user?.availability || DEFAULT_AVAILABILITY,
+  slackUserId: user?.slackUserId || '',
+});
+
 const StudentDashboard = () => {
   const {
     user,
     getMyBookings,
     sendBookingMessage,
+    updateAvailability,
     updateUnavailableDates,
     updateBookingStatus,
     updateProfile,
@@ -31,44 +57,16 @@ const StudentDashboard = () => {
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
   const [certificationDialogOpen, setCertificationDialogOpen] = useState(false);
   const [newCertification, setNewCertification] = useState('');
-  const [profileData, setProfileData] = useState({
-    bio: user?.bio || 'Experienced babysitter with CPR certification. Love working with kids of all ages!',
-    hourlyRate: user?.hourlyRate || 15,
-    useSameRateForAllServices: user?.useSameRateForAllServices !== false,
-    hourlyRateTutor: user?.hourlyRateTutor ?? '',
-    hourlyRateCoach: user?.hourlyRateCoach ?? '',
-    tutoringOfferings: tutoringOfferingsFromUser(user || {}),
-    coachingOfferings: coachingOfferingsFromUser(user || {}),
-    experience: user?.experience || '2 years',
-    certifications: user?.certifications?.length ? user.certifications : ['CPR Certified', 'First Aid'],
-    location: user?.location || 'Downtown Area',
-    availability: user?.availability || {
-      monday: { morning: false, afternoon: true, evening: true },
-      tuesday: { morning: false, afternoon: true, evening: true },
-      wednesday: { morning: false, afternoon: true, evening: true },
-      thursday: { morning: false, afternoon: true, evening: true },
-      friday: { morning: false, afternoon: true, evening: true },
-      saturday: { morning: true, afternoon: true, evening: true },
-      sunday: { morning: true, afternoon: true, evening: false },
-    },
-    slackUserId: user?.slackUserId || '',
-  });
+  const [profileData, setProfileData] = useState(() => profileDataFromUser(user));
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
 
   useEffect(() => {
     if (!user) return;
-    setProfileData((prev) => ({
-      ...prev,
-      bio: user.bio ?? prev.bio,
-      hourlyRate: user.hourlyRate ?? prev.hourlyRate,
-      useSameRateForAllServices: user.useSameRateForAllServices !== false,
-      hourlyRateTutor: user.hourlyRateTutor ?? prev.hourlyRateTutor,
-      hourlyRateCoach: user.hourlyRateCoach ?? prev.hourlyRateCoach,
-      tutoringOfferings: tutoringOfferingsFromUser(user),
-      coachingOfferings: coachingOfferingsFromUser(user),
-    }));
+    setProfileData(profileDataFromUser(user));
   }, [user]);
 
   const [newAvailability, setNewAvailability] = useState({
@@ -117,6 +115,11 @@ const StudentDashboard = () => {
   };
 
   const handleProfileUpdate = async () => {
+    if (!user) {
+      setProfileError('Please sign in again before saving your profile.');
+      return;
+    }
+
     setProfileSaving(true);
     setProfileError('');
     setProfileSuccess('');
@@ -140,10 +143,17 @@ const StudentDashboard = () => {
         coachingOfferings,
       };
       if (profileData.useSameRateForAllServices === false) {
-        const rt = Number(profileData.hourlyRateTutor);
-        const rc = Number(profileData.hourlyRateCoach);
-        if (Number.isFinite(rt)) payload.hourlyRateTutor = rt;
-        if (Number.isFinite(rc)) payload.hourlyRateCoach = rc;
+        const parseOptionalRate = (value) => {
+          if (value === undefined || value === null || String(value).trim() === '') {
+            return undefined;
+          }
+          const rate = Number(value);
+          return Number.isFinite(rate) ? rate : undefined;
+        };
+        const rt = parseOptionalRate(profileData.hourlyRateTutor);
+        const rc = parseOptionalRate(profileData.hourlyRateCoach);
+        if (rt !== undefined) payload.hourlyRateTutor = rt;
+        if (rc !== undefined) payload.hourlyRateCoach = rc;
       }
 
       const result = await updateProfile(payload);
@@ -160,37 +170,64 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleAvailabilityUpdate = () => {
+  const persistAvailability = async (nextAvailability) => {
+    setAvailabilitySaving(true);
+    setAvailabilityError('');
+    const result = await updateAvailability(nextAvailability);
+    if (!result.success) {
+      throw new Error(result.error || 'Unable to update availability.');
+    }
+    setProfileData((prev) => ({
+      ...prev,
+      availability: result.data?.availability || nextAvailability,
+    }));
+  };
+
+  const handleAvailabilityUpdate = async () => {
     if (!newAvailability.day || !newAvailability.timeSlot) {
       return;
     }
 
-    setProfileData((prev) => ({
-      ...prev,
-      availability: {
-        ...prev.availability,
-        [newAvailability.day]: {
-          ...prev.availability[newAvailability.day],
-          [newAvailability.timeSlot]: true,
-        },
+    const nextAvailability = {
+      ...profileData.availability,
+      [newAvailability.day]: {
+        ...profileData.availability[newAvailability.day],
+        [newAvailability.timeSlot]: true,
       },
-    }));
+    };
 
-    setNewAvailability({ day: '', timeSlot: '', enabled: true });
-    setAvailabilityDialogOpen(false);
+    setProfileData((prev) => ({ ...prev, availability: nextAvailability }));
+    try {
+      await persistAvailability(nextAvailability);
+      setNewAvailability({ day: '', timeSlot: '', enabled: true });
+      setAvailabilityDialogOpen(false);
+    } catch (error) {
+      setProfileData((prev) => ({ ...prev, availability: profileData.availability }));
+      setAvailabilityError(error.message || 'Unable to update availability.');
+    } finally {
+      setAvailabilitySaving(false);
+    }
   };
 
-  const handleAvailabilityToggle = (day, timeSlot) => {
-    setProfileData((prev) => ({
-      ...prev,
-      availability: {
-        ...prev.availability,
-        [day]: {
-          ...prev.availability[day],
-          [timeSlot]: !prev.availability[day][timeSlot],
-        },
+  const handleAvailabilityToggle = async (day, timeSlot) => {
+    const previousAvailability = profileData.availability;
+    const nextAvailability = {
+      ...previousAvailability,
+      [day]: {
+        ...previousAvailability[day],
+        [timeSlot]: !previousAvailability[day][timeSlot],
       },
-    }));
+    };
+
+    setProfileData((prev) => ({ ...prev, availability: nextAvailability }));
+    try {
+      await persistAvailability(nextAvailability);
+    } catch (error) {
+      setProfileData((prev) => ({ ...prev, availability: previousAvailability }));
+      setAvailabilityError(error.message || 'Unable to update availability.');
+    } finally {
+      setAvailabilitySaving(false);
+    }
   };
 
   const isDateUnavailable = (date) => {
@@ -419,7 +456,7 @@ const StudentDashboard = () => {
                 </div>
               </div>
             </div>
-            <p className="text-neutral-light mb-4">{profileData.bio}</p>
+            <p className="text-neutral-light mb-4">{profileData.bio || 'Add a bio to introduce yourself to parents.'}</p>
             {(tutoringOfferingsFromUser(user).length > 0 || coachingOfferingsFromUser(user).length > 0) && (
               <div className="mb-4 flex flex-wrap gap-2 text-xs">
                 {tutoringOfferingsFromUser(user).map((o, i) => (
@@ -437,16 +474,20 @@ const StudentDashboard = () => {
             <div className="mb-4">
               <h4 className="text-sm font-semibold text-neutral-dark mb-2">Certifications:</h4>
               <div className="flex flex-wrap gap-2">
-                {profileData.certifications.map((cert, index) => (
-                  <Badge key={index} color="primary">{cert}</Badge>
-                ))}
+                {profileData.certifications.length > 0 ? (
+                  profileData.certifications.map((cert, index) => (
+                    <Badge key={index} color="primary">{cert}</Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-neutral-light">No certifications added yet.</span>
+                )}
               </div>
             </div>
             <p className="text-sm text-neutral-light flex items-center">
-              📍 {profileData.location}
+              📍 {profileData.location || 'Add your location'}
             </p>
             <div className="mt-4">
-              <PrimaryButton onClick={() => setProfileDialogOpen(true)} className="w-full">
+              <PrimaryButton onClick={() => setProfileDialogOpen(true)} className="w-full" disabled={!user}>
                 Edit Profile
               </PrimaryButton>
             </div>
@@ -623,9 +664,12 @@ const StudentDashboard = () => {
                   <p className="text-sm text-neutral-light mt-1">
                     Use this to set your general weekly pattern (mornings / afternoons / evenings).
                   </p>
+                  {availabilityError && (
+                    <p className="mt-2 text-sm text-red-600">{availabilityError}</p>
+                  )}
                 </div>
-                <PrimaryButton onClick={() => setAvailabilityDialogOpen(true)}>
-                  ➕ Add Time Slot
+                <PrimaryButton onClick={() => setAvailabilityDialogOpen(true)} disabled={!user || availabilitySaving}>
+                  {availabilitySaving ? 'Saving…' : '➕ Add Time Slot'}
                 </PrimaryButton>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -638,6 +682,7 @@ const StudentDashboard = () => {
                           type="checkbox"
                           checked={!!available}
                           onChange={() => handleAvailabilityToggle(day, timeSlot)}
+                          disabled={!user || availabilitySaving}
                           className="mr-2"
                         />
                         <span className="text-sm text-neutral-dark capitalize">{timeSlot}</span>
@@ -1057,7 +1102,7 @@ const StudentDashboard = () => {
               <OutlineButton onClick={() => setProfileDialogOpen(false)} className="flex-1">
                 Cancel
               </OutlineButton>
-              <PrimaryButton onClick={handleProfileUpdate} className="flex-1" disabled={profileSaving}>
+              <PrimaryButton onClick={handleProfileUpdate} className="flex-1" disabled={profileSaving || !user}>
                 {profileSaving ? 'Saving…' : 'Save'}
               </PrimaryButton>
             </div>
@@ -1106,8 +1151,8 @@ const StudentDashboard = () => {
               <OutlineButton onClick={() => setAvailabilityDialogOpen(false)} className="flex-1">
                 Cancel
               </OutlineButton>
-              <PrimaryButton onClick={handleAvailabilityUpdate} className="flex-1">
-                Add
+              <PrimaryButton onClick={handleAvailabilityUpdate} className="flex-1" disabled={availabilitySaving}>
+                {availabilitySaving ? 'Saving…' : 'Add'}
               </PrimaryButton>
             </div>
           </div>

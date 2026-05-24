@@ -85,8 +85,11 @@ const apiRequest = async (url, options = {}, retries = 2) => {
   } catch (error) {
     clearTimeout(timeoutId);
     
-    // Retry on network errors if retries remaining
-    if (retries > 0 && (error.name === 'AbortError' || (error instanceof TypeError && error.message.includes('fetch')))) {
+    const method = (options.method || 'GET').toUpperCase();
+    const canRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+
+    // Retry only idempotent requests. Retrying POST/PUT after a timeout can duplicate writes.
+    if (canRetry && retries > 0 && (error.name === 'AbortError' || (error instanceof TypeError && error.message.includes('fetch')))) {
       // Wait 500ms before retry
       await new Promise(resolve => setTimeout(resolve, 500));
       return apiRequest(url, options, retries - 1);
@@ -137,7 +140,10 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           console.error('Auth verification failed:', error);
           // Only remove token on clear auth errors, not network errors
-          if (!error.message.includes('timeout') && !error.message.includes('Network error')) {
+          const transientAuthFailure = ['timeout', 'Network error', 'Could not reach', 'Cannot connect'].some(
+            (text) => error.message.includes(text)
+          );
+          if (!transientAuthFailure) {
             safeLocalStorage.removeItem('token');
           }
         }
