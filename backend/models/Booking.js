@@ -94,7 +94,10 @@ bookingSchema.pre('validate', function () {
   const rate = this.hourlyRate;
   if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
     const start = new Date(`2000-01-01T${this.startTime}`);
-    const end = new Date(`2000-01-01T${this.endTime}`);
+    let end = new Date(`2000-01-01T${this.endTime}`);
+    if (Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end <= start) {
+      end.setDate(end.getDate() + 1);
+    }
     const hours = (end - start) / (1000 * 60 * 60);
     if (Number.isFinite(hours)) {
       const raw = hours * Number(rate);

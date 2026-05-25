@@ -86,8 +86,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
-    // Validate userType
-    if (!['student', 'parent', 'admin'].includes(userType)) {
+    // Public registration may only create end-user accounts; admins are seeded out-of-band.
+    if (!['student', 'parent'].includes(userType)) {
       return res.status(400).json({ error: 'Invalid user type' });
     }
 
@@ -138,10 +138,6 @@ router.post('/register', async (req, res) => {
     // Add parent-specific fields
     if (userType === 'parent') {
       userData.emergencyContact = emergencyContact?.trim();
-    }
-
-    if (userType === 'admin') {
-      userData.isVerified = true;
     }
 
     // Create user
@@ -389,19 +385,7 @@ router.put('/profile', auth, async (req, res) => {
 router.get('/verify', auth, (req, res) => {
   res.json({
     valid: true,
-    user: {
-      id: req.user._id,
-      email: req.user.email,
-      firstName: req.user.firstName,
-      lastName: req.user.lastName,
-      userType: req.user.userType,
-      grade: req.user.grade,
-      school: req.user.school,
-      isVerified: req.user.isVerified,
-      rating: req.user.rating,
-      reviewCount: req.user.reviewCount,
-      profileImage: req.user.profileImage,
-    },
+    user: studentProfileShape(req.user),
   });
 });
 

@@ -175,11 +175,14 @@ const BookingPage = () => {
     if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
 
     const start = new Date(`2000-01-01T${bookingData.startTime}`);
-    const end = new Date(`2000-01-01T${bookingData.endTime}`);
+    let end = new Date(`2000-01-01T${bookingData.endTime}`);
+    if (Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end <= start) {
+      end.setDate(end.getDate() + 1);
+    }
     const hours = (end - start) / (1000 * 60 * 60);
 
     const rate = getEffectiveHourlyRateForStudent(student, bookingData.serviceType);
-    return Math.round(hours * rate * 100) / 100;
+    return Number.isFinite(hours) ? Math.round(hours * rate * 100) / 100 : 0;
   };
 
   const handleSubmit = async () => {
