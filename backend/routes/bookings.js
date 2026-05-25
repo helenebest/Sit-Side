@@ -210,14 +210,28 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
       }
     }
 
+    const requesterId = req.user._id.toString();
     const bookings = await Booking.find(filter)
+      .select('student parent date startTime endTime status serviceType tutoringSubject tutoringSubjectOther coachingSport coachingSportOther')
       .populate([
         { path: 'student', select: 'firstName lastName' },
         { path: 'parent', select: 'firstName lastName' },
       ])
       .sort({ date: 1, startTime: 1 });
 
-    res.json({ bookings });
+    const safeBookings = bookings.map((booking) => {
+      const obj = booking.toObject();
+      const student = booking.student?._id || booking.student;
+      const parent = booking.parent?._id || booking.parent;
+      const isStudentOnBooking = student?.toString() === requesterId;
+      const isParentOnBooking = parent?.toString() === requesterId;
+      if (!isStudentOnBooking && !isParentOnBooking) {
+        delete obj.parent;
+      }
+      return obj;
+    });
+
+    res.json({ bookings: safeBookings });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });

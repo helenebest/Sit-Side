@@ -32,15 +32,21 @@ function validateMongoUriString(uri) {
 
 /**
  * Prefer split credentials on Vercel: password is always URL-encoded here, so special
- * characters (! @ # etc.) never break auth. Set MONGODB_USER, MONGODB_PASSWORD, MONGODB_HOST.
+ * characters (! @ # etc.) never break auth. Set MONGODB_USER, MONGODB_PASSWORD, MONGODB_HOST, and MONGODB_DB_NAME.
  * If those are not all set, falls back to MONGODB_URI.
  */
 function resolveMongoUri() {
   const user = stripAngleBrackets(process.env.MONGODB_USER || process.env.MONGODB_USERNAME || '');
   const password = process.env.MONGODB_PASSWORD != null ? String(process.env.MONGODB_PASSWORD) : '';
   const hostRaw = stripAngleBrackets(process.env.MONGODB_HOST || '');
+  const dbName = stripAngleBrackets(process.env.MONGODB_DB_NAME || '');
 
   if (user && password && hostRaw) {
+    if (!dbName) {
+      throw new Error(
+        'MONGODB_DB_NAME is required when using MONGODB_USER + MONGODB_PASSWORD + MONGODB_HOST. Without it, MongoDB writes to the default "test" database.'
+      );
+    }
     let host = hostRaw
       .replace(/^mongodb\+srv:\/\//i, '')
       .replace(/^mongodb:\/\//i, '')
@@ -60,7 +66,7 @@ function resolveMongoUri() {
       authSource,
       appName,
     });
-    const uri = `mongodb+srv://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}/?${qs.toString()}`;
+    const uri = `mongodb+srv://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}/${encodeURIComponent(dbName)}?${qs.toString()}`;
     return validateMongoUriString(uri);
   }
 

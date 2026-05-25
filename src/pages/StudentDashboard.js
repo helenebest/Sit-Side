@@ -59,15 +59,35 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     if (!user) return;
+    const hasTutoringData =
+      Array.isArray(user.tutoringOfferings) ||
+      Boolean(user.tutoringSubject) ||
+      Boolean(user.tutoringSubjectOther);
+    const hasCoachingData =
+      Array.isArray(user.coachingOfferings) ||
+      Boolean(user.coachingSport) ||
+      Boolean(user.coachingSportOther);
     setProfileData((prev) => ({
       ...prev,
       bio: user.bio ?? prev.bio,
       hourlyRate: user.hourlyRate ?? prev.hourlyRate,
-      useSameRateForAllServices: user.useSameRateForAllServices !== false,
+      useSameRateForAllServices:
+        user.useSameRateForAllServices ?? prev.useSameRateForAllServices,
       hourlyRateTutor: user.hourlyRateTutor ?? prev.hourlyRateTutor,
       hourlyRateCoach: user.hourlyRateCoach ?? prev.hourlyRateCoach,
-      tutoringOfferings: tutoringOfferingsFromUser(user),
-      coachingOfferings: coachingOfferingsFromUser(user),
+      tutoringOfferings: hasTutoringData
+        ? tutoringOfferingsFromUser(user)
+        : prev.tutoringOfferings,
+      coachingOfferings: hasCoachingData
+        ? coachingOfferingsFromUser(user)
+        : prev.coachingOfferings,
+      experience: user.experience ?? prev.experience,
+      certifications: Array.isArray(user.certifications)
+        ? user.certifications
+        : prev.certifications,
+      location: user.location ?? prev.location,
+      availability: user.availability ?? prev.availability,
+      slackUserId: user.slackUserId ?? prev.slackUserId,
     }));
   }, [user]);
 
@@ -86,6 +106,7 @@ const StudentDashboard = () => {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [savingUnavailableDates, setSavingUnavailableDates] = useState(false);
+  const [dayAvailabilityError, setDayAvailabilityError] = useState('');
   const [dayAvailabilityDialogOpen, setDayAvailabilityDialogOpen] = useState(false);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
   const [selectedCalendarDateBlocked, setSelectedCalendarDateBlocked] = useState(false);
@@ -206,6 +227,7 @@ const StudentDashboard = () => {
 
     setSelectedCalendarDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
     setSelectedCalendarDateBlocked(unavailableDates.includes(normalizedClicked));
+    setDayAvailabilityError('');
     setDayAvailabilityDialogOpen(true);
   };
 
@@ -227,10 +249,16 @@ const StudentDashboard = () => {
 
     const isoDates = Array.from(currentSet).map((ts) => new Date(ts).toISOString());
     setSavingUnavailableDates(true);
+    setDayAvailabilityError('');
     try {
-      await updateUnavailableDates(isoDates);
+      const result = await updateUnavailableDates(isoDates);
+      if (!result.success) {
+        throw new Error(result.error || 'Unable to update unavailable dates.');
+      }
       setDayAvailabilityDialogOpen(false);
       setSelectedCalendarDate(null);
+    } catch (error) {
+      setDayAvailabilityError(error.message || 'Unable to update unavailable dates.');
     } finally {
       setSavingUnavailableDates(false);
     }
@@ -1148,6 +1176,9 @@ const StudentDashboard = () => {
                 Block this day (unavailable)
               </label>
             </div>
+            {dayAvailabilityError && (
+              <div className="mt-4 text-sm text-red-600">{dayAvailabilityError}</div>
+            )}
 
             <div className="flex gap-3 mt-6">
               <OutlineButton
