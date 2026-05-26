@@ -118,6 +118,15 @@ const normalizeUserFromApi = (u) => {
   return { ...u, id };
 };
 
+const isTransientAuthCheckError = (error) => {
+  const msg = error?.message || '';
+  return (
+    msg.includes('timed out') ||
+    msg.includes('Could not reach') ||
+    msg.includes('Cannot connect')
+  );
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -137,7 +146,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           console.error('Auth verification failed:', error);
           // Only remove token on clear auth errors, not network errors
-          if (!error.message.includes('timeout') && !error.message.includes('Network error')) {
+          if (!isTransientAuthCheckError(error)) {
             safeLocalStorage.removeItem('token');
           }
         }
