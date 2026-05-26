@@ -88,19 +88,46 @@ const bookingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+function minutesFromTime(value) {
+  if (!value || typeof value !== 'string') return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function calculateTotalAmount(startTime, endTime, hourlyRate) {
+  const start = minutesFromTime(startTime);
+  const end = minutesFromTime(endTime);
+  const rate = Number(hourlyRate);
+  if (start == null || end == null || !Number.isFinite(rate)) return null;
+
+  let durationMinutes = end - start;
+  if (durationMinutes <= 0) {
+    durationMinutes += 24 * 60;
+  }
+
+  return Math.round((durationMinutes / 60) * rate * 100) / 100;
+}
+
 // totalAmount must be set before Mongoose validates required paths (validate runs before pre('save')).
 // Mongoose 8+: sync hooks omit `next`; calling next() throws "next is not a function" in some runtimes.
 bookingSchema.pre('validate', function () {
-  const rate = this.hourlyRate;
-  if (this.startTime && this.endTime != null && rate != null && Number.isFinite(Number(rate))) {
-    const start = new Date(`2000-01-01T${this.startTime}`);
-    const end = new Date(`2000-01-01T${this.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
-    if (Number.isFinite(hours)) {
-      const raw = hours * Number(rate);
-      this.totalAmount = Math.round(Math.max(0, raw) * 100) / 100;
-    }
+  if (this.startTime && minutesFromTime(this.startTime) == null) {
+    this.invalidate('startTime', 'Start time must be a valid HH:MM time');
   }
+  if (this.endTime && minutesFromTime(this.endTime) == null) {
+    this.invalidate('endTime', 'End time must be a valid HH:MM time');
+  }
+
+  const calculatedTotal = calculateTotalAmount(this.startTime, this.endTime, this.hourlyRate);
+  if (calculatedTotal != null) {
+    this.totalAmount = calculatedTotal;
+  }
+
   if (this.totalAmount == null || Number.isNaN(this.totalAmount)) {
     this.totalAmount = 0;
   }

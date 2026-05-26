@@ -197,6 +197,13 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
   try {
     const { studentId } = req.params;
     const { from, to } = req.query;
+    const isOwnStudentCalendar =
+      req.user.userType === 'student' && req.user._id.toString() === studentId;
+    const isParentAvailabilityLookup = req.user.userType === 'parent';
+
+    if (!isOwnStudentCalendar && !isParentAvailabilityLookup) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     const filter = { student: studentId };
 
@@ -213,9 +220,22 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     const bookings = await Booking.find(filter)
       .populate([
         { path: 'student', select: 'firstName lastName' },
-        { path: 'parent', select: 'firstName lastName' },
+        ...(isOwnStudentCalendar ? [{ path: 'parent', select: 'firstName lastName' }] : []),
       ])
       .sort({ date: 1, startTime: 1 });
+
+    if (isParentAvailabilityLookup) {
+      return res.json({
+        bookings: bookings.map((booking) => ({
+          _id: booking._id,
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          status: booking.status,
+          serviceType: booking.serviceType,
+        })),
+      });
+    }
 
     res.json({ bookings });
   } catch (error) {
