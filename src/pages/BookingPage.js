@@ -17,6 +17,26 @@ import {
   parseSportOfferingKey,
 } from '../utils/studentOfferingsClient';
 
+const calculateBookingHours = (startTime, endTime) => {
+  if (!startTime || !endTime) return null;
+
+  const parseMinutes = (value) => {
+    const match = String(value).trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  };
+
+  const start = parseMinutes(startTime);
+  const end = parseMinutes(endTime);
+  if (start == null || end == null || start === end) return null;
+
+  const durationMinutes = end > start ? end - start : end + 24 * 60 - start;
+  return durationMinutes / 60;
+};
+
 const BookingPage = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
@@ -146,6 +166,10 @@ const BookingPage = () => {
   }
 
   const steps = ['Booking Details', 'Payment', 'Confirmation'];
+  const bookingDurationHours = calculateBookingHours(bookingData.startTime, bookingData.endTime);
+  const bookingDurationInvalid = Boolean(
+    bookingData.startTime && bookingData.endTime && bookingDurationHours == null
+  );
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -174,9 +198,8 @@ const BookingPage = () => {
   const calculateTotal = () => {
     if (!bookingData.startTime || !bookingData.endTime || !student) return 0;
 
-    const start = new Date(`2000-01-01T${bookingData.startTime}`);
-    const end = new Date(`2000-01-01T${bookingData.endTime}`);
-    const hours = (end - start) / (1000 * 60 * 60);
+    const hours = bookingDurationHours;
+    if (hours == null) return 0;
 
     const rate = getEffectiveHourlyRateForStudent(student, bookingData.serviceType);
     return Math.round(hours * rate * 100) / 100;
@@ -184,6 +207,10 @@ const BookingPage = () => {
 
   const handleSubmit = async () => {
     if (!student) return;
+    if (bookingDurationInvalid) {
+      setSubmitError('End time must differ from start time. Choose an earlier end time for an overnight booking.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -345,6 +372,11 @@ const BookingPage = () => {
             required
           />
         </div>
+        {bookingDurationInvalid && (
+          <div className="md:col-span-2 text-sm text-red-600">
+            End time must differ from start time. Choose an earlier end time for an overnight booking.
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-neutral-dark mb-2">Number of Children</label>
           <input
@@ -637,6 +669,7 @@ const BookingPage = () => {
                   (!bookingData.date ||
                     !bookingData.startTime ||
                     !bookingData.endTime ||
+                    bookingDurationInvalid ||
                     (bookingData.serviceType === 'tutor' && !tutorAvailable) ||
                     (bookingData.serviceType === 'coach' && !coachAvailable))
                 }
@@ -645,6 +678,7 @@ const BookingPage = () => {
                   (!bookingData.date ||
                     !bookingData.startTime ||
                     !bookingData.endTime ||
+                    bookingDurationInvalid ||
                     (bookingData.serviceType === 'tutor' && !tutorAvailable) ||
                     (bookingData.serviceType === 'coach' && !coachAvailable))
                     ? 'opacity-50 cursor-not-allowed'

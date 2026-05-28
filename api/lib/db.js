@@ -118,6 +118,9 @@ async function connectToDatabase() {
   const connectOpts = buildConnectOptions();
 
   const g = globalThis;
+  if (g[GLOBAL_KEY] && [0, 3].includes(mongoose.connection.readyState)) {
+    g[GLOBAL_KEY] = null;
+  }
   if (!g[GLOBAL_KEY]) {
     g[GLOBAL_KEY] = mongoose.connect(uri, connectOpts).catch(async (err) => {
       g[GLOBAL_KEY] = null;
