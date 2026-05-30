@@ -198,7 +198,10 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     const { studentId } = req.params;
     const { from, to } = req.query;
 
-    const filter = { student: studentId };
+    const filter = {
+      student: studentId,
+      status: { $nin: ['cancelled', 'rejected'] },
+    };
 
     if (from || to) {
       filter.date = {};
@@ -211,11 +214,9 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     }
 
     const bookings = await Booking.find(filter)
-      .populate([
-        { path: 'student', select: 'firstName lastName' },
-        { path: 'parent', select: 'firstName lastName' },
-      ])
-      .sort({ date: 1, startTime: 1 });
+      .select('_id date startTime endTime status serviceType')
+      .sort({ date: 1, startTime: 1 })
+      .lean();
 
     res.json({ bookings });
   } catch (error) {
