@@ -80,15 +80,15 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Validate userType
+    if (!['student', 'parent'].includes(userType)) {
+      return res.status(400).json({ error: 'Invalid user type' });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email already exists' });
-    }
-
-    // Validate userType
-    if (!['student', 'parent', 'admin'].includes(userType)) {
-      return res.status(400).json({ error: 'Invalid user type' });
     }
 
     // Validate student-specific fields
@@ -138,10 +138,6 @@ router.post('/register', async (req, res) => {
     // Add parent-specific fields
     if (userType === 'parent') {
       userData.emergencyContact = emergencyContact?.trim();
-    }
-
-    if (userType === 'admin') {
-      userData.isVerified = true;
     }
 
     // Create user
