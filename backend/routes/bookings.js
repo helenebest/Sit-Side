@@ -41,7 +41,8 @@ router.post('/', auth, requireStudentOrParent, async (req, res) => {
     const student = await User.findOne({
       _id: studentId,
       userType: 'student',
-      isActive: true
+      isActive: true,
+      isVerified: true,
     });
 
     if (!student) {
@@ -211,13 +212,34 @@ router.get('/student/:studentId', auth, requireStudentOrParent, async (req, res)
     }
 
     const bookings = await Booking.find(filter)
-      .populate([
-        { path: 'student', select: 'firstName lastName' },
-        { path: 'parent', select: 'firstName lastName' },
-      ])
+      .select('_id student parent date startTime endTime status serviceType')
       .sort({ date: 1, startTime: 1 });
 
-    res.json({ bookings });
+    const viewerId = req.user._id.toString();
+    const sanitizedBookings = bookings.map((booking) => {
+      const plain =
+        typeof booking.toObject === 'function'
+          ? booking.toObject()
+          : booking;
+      const isParticipant =
+        plain.student?.toString?.() === viewerId ||
+        plain.parent?.toString?.() === viewerId;
+
+      if (isParticipant) {
+        return plain;
+      }
+
+      return {
+        _id: plain._id,
+        date: plain.date,
+        startTime: plain.startTime,
+        endTime: plain.endTime,
+        status: plain.status,
+        serviceType: plain.serviceType,
+      };
+    });
+
+    res.json({ bookings: sanitizedBookings });
   } catch (error) {
     console.error('Get student bookings error:', error);
     res.status(500).json({ error: 'Server error' });

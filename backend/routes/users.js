@@ -19,10 +19,11 @@ router.get('/students', auth, requireStudentOrParent, async (req, res) => {
       limit = 10 
     } = req.query;
 
-    // Build filter object (list all active student profiles; verification is a trust signal, not a browse gate)
+    // Only approved students should be discoverable/bookable by families.
     const filter = {
       userType: 'student',
       isActive: true,
+      isVerified: true,
     };
 
     // Add location filter
@@ -88,7 +89,8 @@ router.get('/students/:id', auth, requireStudentOrParent, async (req, res) => {
     const student = await User.findOne({
       _id: req.params.id,
       userType: 'student',
-      isActive: true
+      isActive: true,
+      isVerified: true,
     }).select('-password -pushSubscriptions');
 
     if (!student) {
@@ -114,6 +116,7 @@ router.get('/search', auth, requireStudentOrParent, async (req, res) => {
     const filter = {
       userType: 'student',
       isActive: true,
+      isVerified: true,
     };
 
     // Text search

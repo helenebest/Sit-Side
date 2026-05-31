@@ -86,8 +86,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
+    // Admin accounts must be created through the protected seed/admin workflow, not public signup.
+    if (userType === 'admin') {
+      return res.status(400).json({ error: 'Admin accounts cannot be self-registered' });
+    }
+
     // Validate userType
-    if (!['student', 'parent', 'admin'].includes(userType)) {
+    if (!['student', 'parent'].includes(userType)) {
       return res.status(400).json({ error: 'Invalid user type' });
     }
 
@@ -138,10 +143,6 @@ router.post('/register', async (req, res) => {
     // Add parent-specific fields
     if (userType === 'parent') {
       userData.emergencyContact = emergencyContact?.trim();
-    }
-
-    if (userType === 'admin') {
-      userData.isVerified = true;
     }
 
     // Create user
